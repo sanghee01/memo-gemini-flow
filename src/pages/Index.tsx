@@ -1,16 +1,22 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MemoList } from '@/components/MemoList';
 import { MemoEditor } from '@/components/MemoEditor';
 import { MemoViewer } from '@/components/MemoViewer';
 import { Header } from '@/components/Header';
+import { GeminiKeyDialog } from '@/components/GeminiKeyDialog';
 import { Memo } from '@/types/memo';
+import { useGemini } from '@/contexts/GeminiContext';
+import { organizeContentWithGemini } from '@/services/geminiService';
+import { toast } from '@/components/ui/use-toast';
 
 const Index = () => {
   const [memos, setMemos] = useState<Memo[]>([]);
   const [selectedMemo, setSelectedMemo] = useState<Memo | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isViewing, setIsViewing] = useState(false);
+  const [isOrganizing, setIsOrganizing] = useState(false);
+  const { apiKey, setApiKey } = useGemini();
 
   const handleCreateMemo = () => {
     const newMemo: Memo = {
@@ -55,43 +61,63 @@ const Index = () => {
   };
 
   const handleOrganizeMemo = async (memo: Memo) => {
-    // Mock AI organization - in real implementation, this would call Gemini API
-    const organizedContent = mockOrganizeContent(memo.content);
-    const organizedMemo: Memo = {
-      ...memo,
-      content: organizedContent,
-      isOrganized: true,
-      updatedAt: new Date()
-    };
+    if (!apiKey) {
+      toast({
+        title: "API 키 필요",
+        description: "먼저 Gemini API 키를 설정해주세요.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!memo.content.trim()) {
+      toast({
+        title: "내용 없음",
+        description: "정리할 메모 내용이 없습니다.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsOrganizing(true);
     
-    const updatedMemos = memos.map(m => m.id === memo.id ? organizedMemo : m);
-    setMemos(updatedMemos);
-    setSelectedMemo(organizedMemo);
-  };
-
-  const mockOrganizeContent = (content: string): string => {
-    // This is a mock function - real implementation would use Gemini API
-    if (!content.trim()) return content;
-    
-    return `# 정리된 메모
-
-## 📝 주요 내용
-${content.split('\n').filter(line => line.trim()).map(line => `- ${line.trim()}`).join('\n')}
-
-## 💡 핵심 아이디어
-- AI가 분석한 주요 키워드들을 바탕으로 정리됨
-- 내용이 주제별로 응집되어 가독성이 향상됨
-
-## 🔍 추가 고려사항
-- 향후 더 자세한 분석이 필요한 부분들
-- 관련 참고자료나 추가 학습 포인트
-
----
-*이 메모는 AI에 의해 자동으로 정리되었습니다.*`;
+    try {
+      const organizedContent = await organizeContentWithGemini(memo.content, apiKey);
+      
+      const organizedMemo: Memo = {
+        ...memo,
+        content: organizedContent,
+        isOrganized: true,
+        updatedAt: new Date()
+      };
+      
+      const updatedMemos = memos.map(m => m.id === memo.id ? organizedMemo : m);
+      setMemos(updatedMemos);
+      setSelectedMemo(organizedMemo);
+      
+      toast({
+        title: "정리 완료",
+        description: "AI가 메모를 성공적으로 정리했습니다."
+      });
+    } catch (error) {
+      console.error('메모 정리 오류:', error);
+      toast({
+        title: "정리 실패",
+        description: error instanceof Error ? error.message : "메모 정리 중 오류가 발생했습니다.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsOrganizing(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <GeminiKeyDialog 
+        open={!apiKey} 
+        onApiKeySubmit={setApiKey}
+      />
+      
       <Header onCreateMemo={handleCreateMemo} />
       
       <div className="container mx-auto px-4 py-8">
@@ -120,6 +146,7 @@ ${content.split('\n').filter(line => line.trim()).map(line => `- ${line.trim()}`
                 memo={selectedMemo}
                 onEdit={() => handleEditMemo(selectedMemo)}
                 onOrganize={() => handleOrganizeMemo(selectedMemo)}
+                isOrganizing={isOrganizing}
               />
             ) : (
               <div className="bg-white rounded-xl shadow-lg p-12 text-center">
