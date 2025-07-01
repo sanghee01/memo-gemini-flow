@@ -1,73 +1,69 @@
-# Welcome to your Lovable project
 
-## Project info
 
-**URL**: https://lovable.dev/projects/224420fe-45f5-46ea-bf63-036a98ad935c
+# SangMemo: 당신의 메모를 정리해요.
 
-## How can I edit this code?
+# 배포 링크
+[링크](https://memo-gemini-flow.lovable.app)
 
-There are several ways of editing your application.
+## 서비스 소개
 
-**Use Lovable**
+**SangMemo**는 급하게 작성된 메모를 **AI(Google Gemini)가 핵심 키워드 중심으로 똑똑하게 정리**해주는 스마트 메모 서비스입니다. 중요한 정보를 놓치지 않고, 복잡한 아이디어를 빠르고 효과적으로 파악할 수 있도록 돕습니다.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/224420fe-45f5-46ea-bf63-036a98ad935c) and start prompting.
+## 주요 기능
 
-Changes made via Lovable will be committed automatically to this repo.
+  * **자유로운 메모 작성**: 어떤 내용이든 떠오르는 대로 기록할 수 있으며, **이미지 복사/붙여넣기**도 지원합니다.
+  * **AI 기반 키워드 중심 정리**:
+      * 메모에서 **핵심 키워드를 추출**하고, 이를 기반으로 내용을 **응집시켜 정리**합니다.
+      * 정리된 내용은 **개조식 불릿과 적절한 탭**을 활용하여 가독성을 높입니다.
+  * **마크다운(Markdown) 내보내기**:
+      * 정리된 메모를 **`.md` 파일로 손쉽게 다운로드**할 수 있습니다.
+      * **첨부된 이미지도 마크다운 형식으로** 잘 보이게 포함되어 Notion, Obsidian 등 다른 도구와 쉽게 연동됩니다.
 
-**Use your preferred IDE**
+## 누가 사용하면 좋을까요? (페르소나)
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+**기록 광인 - 박지민 (32세)**
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+  * **직업**: 프리랜서 디자이너 / 스타트업 컨설턴트
+  * **기록 습관**: 대화 중 핸드폰 메모장에 키워드와 인사이트를 즉석에서 기록하고, 강의나 세미나 후 기억나는 내용을 한 번에 몰아서 작성합니다. 아이디어가 떠오르는 순간 바로 메모하는 습관이 있습니다.
+  * **목표**: 흩어진 메모들을 체계적으로 정리해서 실제 업무나 프로젝트에 활용하고 싶어 합니다.
+  * **페인 포인트**: 메모 작성 시 생각의 흐름대로 적어 나중에 읽기 어렵고, 관련 내용이 시간순으로 흩어져 전체 맥락 파악이 힘듭니다. 수동으로 정리하기에는 시간이 너무 오래 걸립니다.
 
-Follow these steps:
+## 사용 시나리오
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+SangMemo가 어떻게 박지민의 페인 포인트를 해결하고 니즈를 충족시키는지 확인해 보세요.
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+### 시나리오 1: 커뮤니티 모임 후 메모 정리
 
-# Step 3: Install the necessary dependencies.
-npm i
+**상황**: 박지민은 스타트업 커뮤니티 모임 후, 집에서 모임 내용을 정리하려고 합니다.
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+**사용자 시나리오**:
 
-**Edit a file directly in GitHub**
+1.  모임 중 스마트폰 메모장에 다음과 같은 내용을 휘갈겨 작성합니다:
+      * "마케팅 예산 배분 - SNS 60% 오프라인 40%"
+      * "고객 피드백 루프 중요"
+      * "A사 케이스 - 초기 투자 회수 기간 18개월"
+      * "네트워킹 시 명함보다 LinkedIn 연결이 효과적"
+      * "제품 론칭 전 MVP 테스트 최소 3개월"
+2.  집에 와서 추가로 생각나는 "LinkedIn 프로필 업데이트 필요", "다음 프로젝트에 MVP 단계 적용해보기"와 같은 내용을 메모에 덧붙입니다.
+3.  **SangMemo 앱에 전체 메모 내용을 복사해서 붙여넣습니다.**
+4.  **"정돈하기" 버튼을 클릭하여 AI 정리를 요청합니다.**
+5.  SangMemo는 AI를 통해 내용을 분석하고, **마케팅, 제품 개발, 네트워킹과 같은 카테고리로 자동 분류된 깔끔한 정리 결과**를 보여줍니다.
+6.  박지민은 정리된 내용을 **마크다운 형태로 다운로드**하여 개인 노션 페이지에 저장하고, 추후 클라이언트 상담이나 프로젝트 기획에 활용합니다.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+**사용자 스토리**:
+"프리랜서로서, 저는 다양한 모임에서 얻은 **인사이트들을 체계적으로 정리하고 싶습니다.** 그래서 향후 클라이언트 상담이나 프로젝트 기획 시 **바로 활용**할 수 있습니다."
 
-**Use GitHub Codespaces**
+### 시나리오 2: 온라인 강의 수강 후 메모 활용
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+**상황**: 박지민이 UX 디자인 관련 온라인 강의를 수강한 후, 학습 내용을 정리하여 실무에 적용하고자 합니다.
 
-## What technologies are used for this project?
+**사용자 시나리오**:
 
-This project is built with:
+1.  강의 중간중간 떠오르는 생각들을 순서 없이 메모합니다.
+2.  강의 종료 후, 기억나는 핵심 내용들을 추가로 작성하여 하나의 메모로 통합합니다.
+3.  **SangMemo에 전체 내용을 입력한 후 AI 정리 기능을 활용합니다.**
+4.  SangMemo는 AI를 통해 **학습 주제별로 구조화된 메모**를 제공하여 박지민이 핵심을 쉽게 파악하도록 돕습니다.
+5.  박지민은 정리된 메모에서 실무에 바로 적용 가능한 항목들을 별도로 추출하여 TODO 리스트로 활용합니다.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/224420fe-45f5-46ea-bf63-036a98ad935c) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+**사용자 스토리**:
+"학습자로서, 저는 강의에서 얻은 지식을 **실무에 바로 적용 가능한 형태로 정리하고 싶습니다.** 그래서 학습한 내용이 **실제 프로젝트에서 활용될 수 있습니다.**"
