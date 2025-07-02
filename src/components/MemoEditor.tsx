@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, X, Image, Upload, Lock, Unlock } from 'lucide-react';
+import { Save, X, Image, Upload, Lock, Unlock, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -37,6 +38,7 @@ export const MemoEditor: React.FC<MemoEditorProps> = ({
   const [isGeneratingTags, setIsGeneratingTags] = useState(false);
   const [reminderDate, setReminderDate] = useState<Date | undefined>(memo.reminderDate);
   const [category, setCategory] = useState<string | undefined>(memo.category);
+  const [newTag, setNewTag] = useState('');
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -163,6 +165,17 @@ export const MemoEditor: React.FC<MemoEditorProps> = ({
     }
   };
 
+  const addNewTag = () => {
+    if (newTag.trim() && !tags.includes(newTag.trim())) {
+      setTags(prev => [...prev, newTag.trim()]);
+      setNewTag('');
+    }
+  };
+
+  const removeTag = (indexToRemove: number) => {
+    setTags(tags.filter((_, index) => index !== indexToRemove));
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-lg p-6">
       <div className="flex items-center justify-between mb-6">
@@ -238,7 +251,7 @@ export const MemoEditor: React.FC<MemoEditorProps> = ({
         <div>
           <Textarea
             ref={textareaRef}
-            placeholder="여기에 메모를 자유롭게 작성하세요...&#10;&#10;💡 팁: 이미지를 복사(Ctrl+C)한 후 여기에 붙여넣기(Ctrl+V)할 수 있습니다!"
+            placeholder="여기에 메모를 자유롭게 작성하세요..."
             value={content}
             onChange={(e) => setContent(e.target.value)}
             className="min-h-[400px] resize-none text-base leading-relaxed"
@@ -257,12 +270,31 @@ export const MemoEditor: React.FC<MemoEditorProps> = ({
               {isGeneratingTags ? '생성 중...' : 'AI 태그 생성'}
             </Button>
           </div>
+          
+          <div className="flex items-center space-x-2 mb-3">
+            <Input
+              placeholder="태그 직접 입력"
+              value={newTag}
+              onChange={(e) => setNewTag(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && addNewTag()}
+              className="flex-1"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={addNewTag}
+              disabled={!newTag.trim()}
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
+          
           <div className="flex flex-wrap gap-2">
             {tags.map((tag, index) => (
               <span
                 key={index}
                 className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full flex items-center space-x-1 cursor-pointer hover:bg-blue-200"
-                onClick={() => setTags(tags.filter((_, i) => i !== index))}
+                onClick={() => removeTag(index)}
               >
                 <span>#{tag}</span>
                 <X className="w-3 h-3" />

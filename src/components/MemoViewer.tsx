@@ -83,6 +83,12 @@ export const MemoViewer: React.FC<MemoViewerProps> = ({
                 <span className="text-blue-600 font-medium">📁 {memo.category}</span>
               </>
             )}
+            {memo.reminderDate && (
+              <>
+                <span>•</span>
+                <span className="text-orange-600 font-medium">🔔 {memo.reminderDate.toLocaleString('ko-KR')}</span>
+              </>
+            )}
           </div>
         </div>
         
@@ -126,43 +132,35 @@ export const MemoViewer: React.FC<MemoViewerProps> = ({
                   />
                 ),
                 ul: ({ children }) => (
-                  <ul className="list-disc list-inside space-y-2 my-4 ml-4">{children}</ul>
+                  <ul className="list-disc pl-6 space-y-1 my-4">{children}</ul>
                 ),
                 ol: ({ children }) => (
-                  <ol className="list-decimal list-inside space-y-2 my-4 ml-4">{children}</ol>
+                  <ol className="list-decimal pl-6 space-y-1 my-4">{children}</ol>
                 ),
-                li: ({ children, ordered }) => {
-                  // 중첩 리스트 처리
-                  const content = React.Children.toArray(children);
-                  const hasNestedList = content.some(child => 
-                    React.isValidElement(child) && (child.type === 'ul' || child.type === 'ol')
-                  );
-                  
+                li: ({ children }) => {
                   return (
-                    <li className={`text-gray-700 leading-relaxed ${hasNestedList ? 'mb-2' : ''}`}>
-                      <div className="inline-block">
-                        {content.map((child, index) => {
-                          if (React.isValidElement(child) && (child.type === 'ul' || child.type === 'ol')) {
-                            return (
-                              <div key={index} className="ml-6 mt-2">
-                                {child}
-                              </div>
-                            );
-                          }
-                          return child;
-                        })}
-                      </div>
+                    <li className="text-gray-700 leading-relaxed">
+                      {children}
                     </li>
                   );
                 },
                 h1: ({ children }) => (
-                  <h1 className="text-2xl font-bold text-gray-800 mt-6 mb-4">{children}</h1>
+                  <h1 className="text-3xl font-bold text-gray-900 mt-8 mb-4 pb-2 border-b border-gray-200">{children}</h1>
                 ),
                 h2: ({ children }) => (
-                  <h2 className="text-xl font-semibold text-gray-800 mt-5 mb-3">{children}</h2>
+                  <h2 className="text-2xl font-semibold text-gray-800 mt-6 mb-3">{children}</h2>
                 ),
                 h3: ({ children }) => (
-                  <h3 className="text-lg font-medium text-gray-800 mt-4 mb-2">{children}</h3>
+                  <h3 className="text-xl font-medium text-gray-800 mt-5 mb-2">{children}</h3>
+                ),
+                h4: ({ children }) => (
+                  <h4 className="text-lg font-medium text-gray-800 mt-4 mb-2">{children}</h4>
+                ),
+                h5: ({ children }) => (
+                  <h5 className="text-base font-medium text-gray-800 mt-3 mb-2">{children}</h5>
+                ),
+                h6: ({ children }) => (
+                  <h6 className="text-sm font-medium text-gray-800 mt-3 mb-2">{children}</h6>
                 ),
                 p: ({ children }) => (
                   <p className="text-gray-700 leading-relaxed mb-4">{children}</p>
