@@ -4,6 +4,7 @@ import { Search, Sparkles } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Memo, SearchResult } from '@/types/memo';
+import { performEnhancedSearch } from '@/services/enhancedSearchService';
 
 interface SmartSearchProps {
   memos: Memo[];
@@ -27,58 +28,15 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
 
     setIsSearching(true);
     
-    // 기본적인 키워드 매칭과 유사도 검색을 구현
-    const results: SearchResult[] = [];
-    const queryWords = query.toLowerCase().split(' ');
-    
-    memos.forEach(memo => {
-      const content = (memo.title + ' ' + memo.content).toLowerCase();
-      const tags = memo.tags?.join(' ').toLowerCase() || '';
-      const searchableText = content + ' ' + tags;
-      
-      let relevanceScore = 0;
-      const matchedKeywords: string[] = [];
-      
-      // 정확한 일치
-      queryWords.forEach(word => {
-        if (searchableText.includes(word)) {
-          relevanceScore += 10;
-          matchedKeywords.push(word);
-        }
-      });
-      
-      // 부분 일치
-      queryWords.forEach(word => {
-        const partialMatches = searchableText.split(' ').filter(w => 
-          w.includes(word) && !matchedKeywords.includes(word)
-        );
-        relevanceScore += partialMatches.length * 5;
-        matchedKeywords.push(...partialMatches);
-      });
-      
-      // 태그 매칭에 가중치 부여
-      if (memo.tags) {
-        memo.tags.forEach(tag => {
-          if (queryWords.some(word => tag.toLowerCase().includes(word))) {
-            relevanceScore += 15;
-          }
-        });
-      }
-      
-      if (relevanceScore > 0) {
-        results.push({
-          memo,
-          relevanceScore,
-          matchedKeywords: [...new Set(matchedKeywords)]
-        });
-      }
-    });
-    
-    // 관련도 순으로 정렬
-    results.sort((a, b) => b.relevanceScore - a.relevanceScore);
-    
-    setIsSearching(false);
-    onSearchResults(results.slice(0, 10)); // 상위 10개만 반환
+    try {
+      const results = await performEnhancedSearch(query, memos);
+      onSearchResults(results);
+    } catch (error) {
+      console.error('검색 오류:', error);
+      onSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   const handleSearch = () => {
@@ -95,7 +53,7 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
       <div className="relative flex-1">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
         <Input
-          placeholder="스마트 검색 (예: 사용자 경험, 마케팅 전략...)"
+          placeholder="AI 스마트 검색 (예: 사용자 경험, 마케팅 아이디어...)"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyPress={(e) => e.key === 'Enter' && handleSearch()}

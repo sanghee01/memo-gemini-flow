@@ -1,22 +1,25 @@
 
 import React from 'react';
-import { Edit3, Sparkles, Download, Loader2 } from 'lucide-react';
+import { Edit3, Sparkles, Download, Loader2, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Memo } from '@/types/memo';
 import ReactMarkdown from 'react-markdown';
+import { toast } from '@/components/ui/use-toast';
 
 interface MemoViewerProps {
   memo: Memo;
   onEdit: () => void;
   onOrganize: () => void;
   isOrganizing?: boolean;
+  onUnlock?: () => void;
 }
 
 export const MemoViewer: React.FC<MemoViewerProps> = ({ 
   memo, 
   onEdit, 
   onOrganize, 
-  isOrganizing = false 
+  isOrganizing = false,
+  onUnlock 
 }) => {
   const handleDownload = () => {
     const markdownContent = `# ${memo.title || '제목 없음'}\n\n${memo.content}`;
@@ -30,6 +33,31 @@ export const MemoViewer: React.FC<MemoViewerProps> = ({
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
+
+  // 잠긴 메모인 경우 제목만 표시
+  if (memo.isLocked && onUnlock) {
+    return (
+      <div className="bg-white rounded-xl shadow-lg">
+        <div className="flex items-center justify-center p-12">
+          <div className="text-center">
+            <Lock className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-gray-800 mb-2">
+              {memo.title || '제목 없음'}
+            </h2>
+            <p className="text-gray-600 mb-6">
+              이 메모는 잠겨있습니다. 내용을 보려면 잠금을 해제하세요.
+            </p>
+            <Button onClick={onUnlock} className="mr-2">
+              잠금 해제
+            </Button>
+            <Button variant="outline" onClick={onEdit}>
+              편집
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-xl shadow-lg">
@@ -47,6 +75,12 @@ export const MemoViewer: React.FC<MemoViewerProps> = ({
               <>
                 <span>•</span>
                 <span className="text-green-600 font-medium">✨ AI 정리됨</span>
+              </>
+            )}
+            {memo.category && (
+              <>
+                <span>•</span>
+                <span className="text-blue-600 font-medium">📁 {memo.category}</span>
               </>
             )}
           </div>
@@ -92,11 +126,35 @@ export const MemoViewer: React.FC<MemoViewerProps> = ({
                   />
                 ),
                 ul: ({ children }) => (
-                  <ul className="list-disc list-inside space-y-2 my-4">{children}</ul>
+                  <ul className="list-disc list-inside space-y-2 my-4 ml-4">{children}</ul>
                 ),
-                li: ({ children }) => (
-                  <li className="text-gray-700 leading-relaxed">{children}</li>
+                ol: ({ children }) => (
+                  <ol className="list-decimal list-inside space-y-2 my-4 ml-4">{children}</ol>
                 ),
+                li: ({ children, ordered }) => {
+                  // 중첩 리스트 처리
+                  const content = React.Children.toArray(children);
+                  const hasNestedList = content.some(child => 
+                    React.isValidElement(child) && (child.type === 'ul' || child.type === 'ol')
+                  );
+                  
+                  return (
+                    <li className={`text-gray-700 leading-relaxed ${hasNestedList ? 'mb-2' : ''}`}>
+                      <div className="inline-block">
+                        {content.map((child, index) => {
+                          if (React.isValidElement(child) && (child.type === 'ul' || child.type === 'ol')) {
+                            return (
+                              <div key={index} className="ml-6 mt-2">
+                                {child}
+                              </div>
+                            );
+                          }
+                          return child;
+                        })}
+                      </div>
+                    </li>
+                  );
+                },
                 h1: ({ children }) => (
                   <h1 className="text-2xl font-bold text-gray-800 mt-6 mb-4">{children}</h1>
                 ),
@@ -110,17 +168,17 @@ export const MemoViewer: React.FC<MemoViewerProps> = ({
                   <p className="text-gray-700 leading-relaxed mb-4">{children}</p>
                 ),
                 blockquote: ({ children }) => (
-                  <blockquote className="border-l-4 border-blue-400 pl-4 my-4 text-gray-600 italic">
+                  <blockquote className="border-l-4 border-blue-400 pl-4 my-4 text-gray-600 italic bg-blue-50 py-2 rounded-r">
                     {children}
                   </blockquote>
                 ),
                 code: ({ children }) => (
-                  <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono">
+                  <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono text-gray-800">
                     {children}
                   </code>
                 ),
                 pre: ({ children }) => (
-                  <pre className="bg-gray-100 p-4 rounded-lg overflow-x-auto my-4">
+                  <pre className="bg-gray-100 p-4 rounded-lg overflow-x-auto my-4 border">
                     {children}
                   </pre>
                 )

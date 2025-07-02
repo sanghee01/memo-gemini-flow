@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { MemoList } from '@/components/MemoList';
 import { MemoEditor } from '@/components/MemoEditor';
@@ -7,12 +6,14 @@ import { MemoGallery } from '@/components/MemoGallery';
 import { Header } from '@/components/Header';
 import { SmartSearch } from '@/components/SmartSearch';
 import { ViewModeToggle } from '@/components/ViewModeToggle';
+import { MemoSortFilter } from '@/components/MemoSortFilter';
 import { NotificationBell } from '@/components/NotificationBell';
-import { Memo, ViewMode, SearchResult } from '@/types/memo';
-import { useGemini } from '@/contexts/GeminiContext';
+import { Memo, ViewMode, SearchResult, SortBy, FilterBy } from '@/types/memo';
 import { organizeContentWithGemini } from '@/services/geminiService';
 import { NotificationService } from '@/services/notificationService';
 import { toast } from '@/components/ui/use-toast';
+
+const DEVELOPER_API_KEY = '***REMOVED***';
 
 const Index = () => {
   const [memos, setMemos] = useState<Memo[]>([]);
@@ -23,7 +24,11 @@ const Index = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const { apiKey } = useGemini();
+  const [sortBy, setSortBy] = useState<SortBy>('updatedAt');
+  const [filterBy, setFilterBy] = useState<FilterBy>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>();
+  const [lockedMemoToView, setLockedMemoToView] = useState<string | null>(null);
+  
   const notificationService = NotificationService.getInstance();
 
   // 로컬 스토리지에서 메모 불러오기
@@ -35,7 +40,8 @@ const Index = () => {
           ...memo,
           createdAt: new Date(memo.createdAt),
           updatedAt: new Date(memo.updatedAt),
-          lastViewedAt: memo.lastViewedAt ? new Date(memo.lastViewedAt) : undefined
+          lastViewedAt: memo.lastViewedAt ? new Date(memo.lastViewedAt) : undefined,
+          reminderDate: memo.reminderDate ? new Date(memo.reminderDate) : undefined
         }));
         setMemos(parsedMemos);
       } catch (error) {
@@ -62,6 +68,45 @@ const Index = () => {
 
     return () => clearInterval(interval);
   }, [memos]);
+
+  // 메모 정렬 및 필터링
+  const getSortedAndFilteredMemos = () => {
+    let filteredMemos = isSearching 
+      ? searchResults.map(r => r.memo) 
+      : memos;
+
+    // 필터링
+    if (filterBy === 'category' && selectedCategory) {
+      filteredMemos = filteredMemos.filter(memo => memo.category === selectedCategory);
+    }
+
+    // 정렬
+    return filteredMemos.sort((a, b) => {
+      switch (sortBy) {
+        case 'importance':
+          const importanceOrder = { high: 3, medium: 2, low: 1 };
+          return (importanceOrder[b.importance || 'medium']) - (importanceOrder[a.importance || 'medium']);
+        case 'createdAt':
+          return b.createdAt.getTime() - a.createdAt.getTime();
+        case 'title':
+          return (a.title || '').localeCompare(b.title || '');
+        case 'updatedAt':
+        default:
+          return b.updatedAt.getTime() - a.updatedAt.getTime();
+      }
+    });
+  };
+
+  // 모든 카테고리 목록 생성
+  const getAllCategories = () => {
+    const categories = new Set<string>();
+    memos.forEach(memo => {
+      if (memo.category) {
+        categories.add(memo.category);
+      }
+    });
+    return Array.from(categories).sort();
+  };
 
   const handleCreateMemo = () => {
     const newMemo: Memo = {
@@ -100,6 +145,14 @@ const Index = () => {
   };
 
   const handleSelectMemo = (memo: Memo) => {
+    if (memo.isLocked && memo.password) {
+      setLockedMemoToView(memo.id);
+      setSelectedMemo(memo);
+      setIsViewing(true);
+      setIsEditing(false);
+      return;
+    }
+
     // 조회수 및 마지막 조회 시간 업데이트
     const updatedMemo = {
       ...memo,
@@ -112,25 +165,38 @@ const Index = () => {
     setSelectedMemo(updatedMemo);
     setIsEditing(false);
     setIsViewing(true);
+    setLockedMemoToView(null);
+  };
+
+  const handleUnlockMemo = () => {
+    if (!selectedMemo) return;
+    
+    const inputPassword = prompt('메모 비밀번호를 입력하세요:');
+    if (inputPassword === selectedMemo.password) {
+      setLockedMemoToView(null);
+      // 조회수 업데이트
+      const updatedMemo = {
+        ...selectedMemo,
+        viewCount: (selectedMemo.viewCount || 0) + 1,
+        lastViewedAt: new Date()
+      };
+      const updatedMemos = memos.map(m => m.id === selectedMemo.id ? updatedMemo : m);
+      setMemos(updatedMemos);
+      setSelectedMemo(updatedMemo);
+    } else {
+      toast({
+        title: "접근 거부",
+        description: "비밀번호가 올바르지 않습니다.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleEditMemo = (memo: Memo) => {
-    // 잠긴 메모인 경우 비밀번호 확인
-    if (memo.isLocked && memo.password) {
-      const inputPassword = prompt('메모 비밀번호를 입력하세요:');
-      if (inputPassword !== memo.password) {
-        toast({
-          title: "접근 거부",
-          description: "비밀번호가 올바르지 않습니다.",
-          variant: "destructive"
-        });
-        return;
-      }
-    }
-    
     setSelectedMemo(memo);
     setIsEditing(true);
     setIsViewing(false);
+    setLockedMemoToView(null);
   };
 
   const handleOrganizeMemo = async (memo: Memo) => {
@@ -146,7 +212,7 @@ const Index = () => {
     setIsOrganizing(true);
     
     try {
-      const organizedContent = await organizeContentWithGemini(memo.content, apiKey);
+      const organizedContent = await organizeContentWithGemini(memo.content, DEVELOPER_API_KEY);
       
       const organizedMemo: Memo = {
         ...memo,
@@ -185,6 +251,15 @@ const Index = () => {
     setIsSearching(false);
   };
 
+  const handleSortChange = (sort: SortBy) => {
+    setSortBy(sort);
+  };
+
+  const handleFilterChange = (filter: FilterBy, category?: string) => {
+    setFilterBy(filter);
+    setSelectedCategory(category);
+  };
+
   const handleNotificationClick = (memoId: string) => {
     const memo = memos.find(m => m.id === memoId);
     if (memo) {
@@ -192,7 +267,13 @@ const Index = () => {
     }
   };
 
-  const displayMemos = isSearching ? searchResults.map(r => r.memo) : memos;
+  const displayMemos = getSortedAndFilteredMemos();
+  const categories = getAllCategories();
+
+  // 브라우저 알림 권한 요청
+  useEffect(() => {
+    notificationService.requestNotificationPermission();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -216,6 +297,17 @@ const Index = () => {
                 onSearchResults={handleSearchResults}
                 onClearSearch={handleClearSearch}
               />
+
+              <div className="mb-4">
+                <MemoSortFilter
+                  sortBy={sortBy}
+                  filterBy={filterBy}
+                  selectedCategory={selectedCategory}
+                  categories={categories}
+                  onSortChange={handleSortChange}
+                  onFilterChange={handleFilterChange}
+                />
+              </div>
 
               {isSearching && (
                 <div className="mb-4 p-3 bg-blue-50 rounded-lg">
@@ -252,6 +344,7 @@ const Index = () => {
             {isEditing && selectedMemo ? (
               <MemoEditor
                 memo={selectedMemo}
+                availableCategories={categories}
                 onSave={handleSaveMemo}
                 onCancel={() => setIsEditing(false)}
               />
@@ -261,6 +354,7 @@ const Index = () => {
                 onEdit={() => handleEditMemo(selectedMemo)}
                 onOrganize={() => handleOrganizeMemo(selectedMemo)}
                 isOrganizing={isOrganizing}
+                onUnlock={lockedMemoToView === selectedMemo.id ? handleUnlockMemo : undefined}
               />
             ) : (
               <div className="bg-white rounded-xl shadow-lg p-12 text-center">

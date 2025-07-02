@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Save, X, Image, Upload, Lock, Unlock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,17 +8,24 @@ import { useImageUpload } from '@/hooks/useImageUpload';
 import { MemoImportanceSelector } from './MemoImportanceSelector';
 import { MemoColorSelector } from './MemoColorSelector';
 import { MemoLockDialog } from './MemoLockDialog';
+import { MemoReminderSelector } from './MemoReminderSelector';
+import { MemoCategorySelector } from './MemoCategorySelector';
 import { toast } from '@/components/ui/use-toast';
 import { generateTagsWithGemini } from '@/services/aiTagService';
-import { useGemini } from '@/contexts/GeminiContext';
 
 interface MemoEditorProps {
   memo: Memo;
+  availableCategories: string[];
   onSave: (memo: Memo) => void;
   onCancel: () => void;
 }
 
-export const MemoEditor: React.FC<MemoEditorProps> = ({ memo, onSave, onCancel }) => {
+export const MemoEditor: React.FC<MemoEditorProps> = ({ 
+  memo, 
+  availableCategories,
+  onSave, 
+  onCancel 
+}) => {
   const [title, setTitle] = useState(memo.title);
   const [content, setContent] = useState(memo.content);
   const [importance, setImportance] = useState<'low' | 'medium' | 'high'>(memo.importance || 'medium');
@@ -29,11 +35,12 @@ export const MemoEditor: React.FC<MemoEditorProps> = ({ memo, onSave, onCancel }
   const [showLockDialog, setShowLockDialog] = useState(false);
   const [tags, setTags] = useState<string[]>(memo.tags || []);
   const [isGeneratingTags, setIsGeneratingTags] = useState(false);
+  const [reminderDate, setReminderDate] = useState<Date | undefined>(memo.reminderDate);
+  const [category, setCategory] = useState<string | undefined>(memo.category);
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { uploading, handleImageUpload, handleImagePaste } = useImageUpload();
-  const { apiKey } = useGemini();
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -68,6 +75,8 @@ export const MemoEditor: React.FC<MemoEditorProps> = ({ memo, onSave, onCancel }
       isLocked,
       password: isLocked ? password : undefined,
       tags,
+      reminderDate,
+      category,
       updatedAt: new Date()
     };
     onSave(updatedMemo);
@@ -137,7 +146,7 @@ export const MemoEditor: React.FC<MemoEditorProps> = ({ memo, onSave, onCancel }
 
     setIsGeneratingTags(true);
     try {
-      const generatedTags = await generateTagsWithGemini(content, apiKey);
+      const generatedTags = await generateTagsWithGemini(content, '');
       setTags(prev => [...new Set([...prev, ...generatedTags])]);
       toast({
         title: "태그 생성 완료",
@@ -168,6 +177,10 @@ export const MemoEditor: React.FC<MemoEditorProps> = ({ memo, onSave, onCancel }
             {uploading ? <Upload className="w-4 h-4 animate-spin" /> : <Image className="w-4 h-4" />}
             이미지
           </Button>
+          <MemoReminderSelector
+            reminderDate={reminderDate}
+            onChange={setReminderDate}
+          />
           <Button
             variant="outline"
             size="sm"
@@ -215,6 +228,12 @@ export const MemoEditor: React.FC<MemoEditorProps> = ({ memo, onSave, onCancel }
             onChange={setColor}
           />
         </div>
+
+        <MemoCategorySelector
+          selectedCategory={category}
+          availableCategories={availableCategories}
+          onChange={setCategory}
+        />
         
         <div>
           <Textarea
