@@ -1,102 +1,209 @@
+import { Memo } from "@/types/memo";
 
-import { Memo, SearchResult } from '@/types/memo';
+const getApiKey = () => import.meta.env.VITE_GEMINI_API_KEY;
 
-const DEVELOPER_API_KEY = '***REMOVED***';
+export interface SearchResult {
+  memo: Memo;
+  relevanceScore: number;
+  matchedTerms: string[];
+  searchType: "exact" | "semantic" | "ai_enhanced";
+}
 
-export const performEnhancedSearch = async (query: string, memos: Memo[]): Promise<SearchResult[]> => {
+export const performEnhancedSearch = async (
+  query: string,
+  memos: Memo[]
+): Promise<SearchResult[]> => {
   if (!query.trim()) {
     return [];
   }
 
-  // 1단계: 정확한 키워드 매칭 (최우선)
-  const exactMatches: SearchResult[] = [];
-  const contextualMatches: SearchResult[] = [];
-
+  const results: SearchResult[] = [];
   const queryLower = query.toLowerCase();
-  const queryWords = queryLower.split(' ').filter(w => w.length > 1);
+  const queryWords = queryLower.split(/\s+/).filter((word) => word.length > 0);
 
-  memos.forEach(memo => {
-    const searchableText = (memo.title + ' ' + memo.content + ' ' + (memo.tags?.join(' ') || '')).toLowerCase();
-    
+  // 각 메모에 대해 검색 수행
+  for (const memo of memos) {
+    const contentLower = memo.content.toLowerCase();
+    const titleLower = memo.title.toLowerCase();
+    const tagsLower = memo.tags?.map((tag) => tag.toLowerCase()) || [];
+
+    // 정확한 매칭 점수 계산
     let exactScore = 0;
-    let contextualScore = 0;
     const matchedKeywords: string[] = [];
 
-    // 정확한 문구 매칭
-    if (searchableText.includes(queryLower)) {
-      exactScore += 100;
-      matchedKeywords.push(query);
+    // 제목에서의 매칭 (가중치 3)
+    if (titleLower.includes(queryLower)) {
+      exactScore += 3;
+      matchedKeywords.push("제목");
     }
 
-    // 개별 단어 매칭
-    queryWords.forEach(word => {
-      if (searchableText.includes(word)) {
-        exactScore += 20;
+    // 태그에서의 매칭 (가중치 2)
+    for (const tag of tagsLower) {
+      if (tag.includes(queryLower)) {
+        exactScore += 2;
+        matchedKeywords.push(`태그: ${tag}`);
+      }
+    }
+
+    // 내용에서의 매칭 (가중치 1)
+    for (const word of queryWords) {
+      if (contentLower.includes(word)) {
+        exactScore += 1;
         matchedKeywords.push(word);
       }
-    });
-
-    // 태그 매칭 가중치
-    if (memo.tags) {
-      memo.tags.forEach(tag => {
-        if (tag.toLowerCase().includes(queryLower) || queryWords.some(w => tag.toLowerCase().includes(w))) {
-          exactScore += 30;
-        }
-      });
     }
 
+    // 정확한 매칭이 있는 경우
     if (exactScore > 0) {
-      exactMatches.push({
+      results.push({
         memo,
         relevanceScore: exactScore,
-        matchedKeywords: [...new Set(matchedKeywords)]
+        matchedTerms: [...new Set(matchedKeywords)],
+        searchType: "exact",
       });
     } else {
-      // 문맥적 유사성은 별도로 처리
-      contextualScore = calculateContextualSimilarity(query, memo);
+      // 의미적 유사성 검사 (단어 일부 매칭)
+      let contextualScore = 0;
+      for (const word of queryWords) {
+        if (
+          contentLower
+            .split("")
+            .some((_, i) => contentLower.slice(i, i + word.length) === word)
+        ) {
+          contextualScore += 0.5;
+        }
+      }
+
       if (contextualScore > 0) {
-        contextualMatches.push({
+        results.push({
           memo,
           relevanceScore: contextualScore,
-          matchedKeywords: []
+          matchedTerms: [],
+          searchType: "semantic",
         });
       }
     }
-  });
-
-  // 2단계: AI 기반 문맥적 검색 (정확한 매칭이 부족할 때)
-  let aiMatches: SearchResult[] = [];
-  if (exactMatches.length < 3) {
-    try {
-      aiMatches = await performAiContextualSearch(query, memos);
-    } catch (error) {
-      console.error('AI 검색 오류:', error);
-    }
   }
 
-  // 결과 병합 및 정렬
-  const allResults = [
-    ...exactMatches.sort((a, b) => b.relevanceScore - a.relevanceScore),
-    ...aiMatches.filter(ai => !exactMatches.some(exact => exact.memo.id === ai.memo.id)),
-    ...contextualMatches.filter(ctx => 
-      !exactMatches.some(exact => exact.memo.id === ctx.memo.id) &&
-      !aiMatches.some(ai => ai.memo.id === ctx.memo.id)
-    ).sort((a, b) => b.relevanceScore - a.relevanceScore)
-  ];
+  // AI 기반 검색도 시도 (API 키가 있는 경우)
+  try {
+    const aiResults = await performAIEnhancedSearch(query, memos);
+    results.push(...aiResults);
+  } catch (error) {
+    console.log("AI 검색 실패, 기본 검색 결과만 반환:", error);
+  }
 
-  return allResults.slice(0, 10);
+  // 중복 제거 및 점수순 정렬
+  const uniqueResults = results.reduce((acc, result) => {
+    const existing = acc.find((r) => r.memo.id === result.memo.id);
+    if (!existing || existing.relevanceScore < result.relevanceScore) {
+      return [...acc.filter((r) => r.memo.id !== result.memo.id), result];
+    }
+    return acc;
+  }, [] as SearchResult[]);
+
+  return uniqueResults
+    .sort((a, b) => b.relevanceScore - a.relevanceScore)
+    .slice(0, 10); // 상위 10개만 반환
+};
+
+const performAIEnhancedSearch = async (
+  query: string,
+  memos: Memo[]
+): Promise<SearchResult[]> => {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    return [];
+  }
+
+  const prompt = `
+다음 검색어에 가장 관련성이 높은 메모들을 찾아주세요.
+검색어: "${query}"
+
+메모 목록:
+${memos
+  .map(
+    (memo, index) =>
+      `${index + 1}. 제목: ${memo.title}\n내용: ${memo.content.slice(
+        0,
+        200
+      )}...`
+  )
+  .join("\n\n")}
+
+각 메모에 대해 0-1 사이의 관련성 점수를 매겨주세요. 응답 형식:
+메모번호: 점수
+`;
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: prompt,
+                },
+              ],
+            },
+          ],
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API 호출 실패: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+    // 응답에서 점수 추출
+    const results: SearchResult[] = [];
+    const lines = responseText.split("\n");
+
+    for (const line of lines) {
+      const match = line.match(/(\d+):\s*([\d.]+)/);
+      if (match) {
+        const memoIndex = parseInt(match[1]) - 1;
+        const score = parseFloat(match[2]);
+
+        if (memoIndex >= 0 && memoIndex < memos.length && score > 0.3) {
+          results.push({
+            memo: memos[memoIndex],
+            relevanceScore: score,
+            matchedTerms: ["AI 매칭"],
+            searchType: "ai_enhanced",
+          });
+        }
+      }
+    }
+
+    return results;
+  } catch (error) {
+    console.error("AI 검색 오류:", error);
+    return [];
+  }
 };
 
 const calculateContextualSimilarity = (query: string, memo: Memo): number => {
-  const queryWords = query.toLowerCase().split(' ');
-  const memoText = (memo.title + ' ' + memo.content).toLowerCase();
-  
+  const queryWords = query.toLowerCase().split(" ");
+  const memoText = (memo.title + " " + memo.content).toLowerCase();
+
   let score = 0;
-  queryWords.forEach(word => {
+  queryWords.forEach((word) => {
     // 부분적 매칭
-    const partialMatches = memoText.split(' ').filter(w => w.includes(word) && w !== word);
+    const partialMatches = memoText
+      .split(" ")
+      .filter((w) => w.includes(word) && w !== word);
     score += partialMatches.length * 5;
-    
+
     // 유사 어근 검색 (간단한 한국어 어근)
     if (word.length > 2) {
       const stem = word.slice(0, -1);
@@ -105,83 +212,130 @@ const calculateContextualSimilarity = (query: string, memo: Memo): number => {
       }
     }
   });
-  
+
   return score;
 };
 
-const performAiContextualSearch = async (query: string, memos: Memo[]): Promise<SearchResult[]> => {
-  const prompt = `
-다음 검색어에 대해 제공된 메모들 중에서 의미적으로 관련된 메모를 찾아주세요.
+export const enhancedSemanticSearch = async (
+  memos: Memo[],
+  searchQuery: string,
+  threshold: number = 0.5
+): Promise<SearchResult[]> => {
+  const apiKey = getApiKey();
 
-검색어: "${query}"
-
-메모 목록:
-${memos.map((memo, index) => `
-${index + 1}. ID: ${memo.id}
-제목: ${memo.title || '제목 없음'}
-내용: ${memo.content.slice(0, 200)}...
-태그: ${memo.tags?.join(', ') || '없음'}
-`).join('\n')}
-
-요구사항:
-1. 검색어와 의미적으로 관련된 메모 ID들을 찾아주세요
-2. 관련도가 높은 순서로 최대 5개까지만 선택해주세요
-3. 각 메모에 대해 관련도 점수(1-100)를 매겨주세요
-4. 결과는 다음 형식으로만 반환해주세요:
-ID:점수,ID:점수,ID:점수
-
-예시: memo1:85,memo3:72,memo7:65
-`;
+  if (!apiKey) {
+    console.error("API 키가 설정되지 않았습니다. 기본 검색으로 전환합니다.");
+    return performBasicSearch(memos, searchQuery);
+  }
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${DEVELOPER_API_KEY}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.3,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 200,
-        }
-      })
-    });
+    // 검색어를 더 포괄적으로 확장
+    const expandedQuery = await expandSearchQuery(searchQuery, apiKey);
+
+    // 각 메모에 대해 관련성 점수 계산
+    const searchResults: SearchResult[] = [];
+
+    for (const memo of memos) {
+      const relevanceScore = await calculateRelevanceScore(
+        memo,
+        searchQuery,
+        expandedQuery,
+        apiKey
+      );
+
+      if (relevanceScore >= threshold) {
+        searchResults.push({
+          memo,
+          relevanceScore,
+          matchedTerms: extractMatchedTerms(memo, [
+            searchQuery,
+            ...expandedQuery,
+          ]),
+          searchType: "ai_enhanced",
+        });
+      }
+    }
+
+    // 관련성 점수순으로 정렬
+    return searchResults.sort((a, b) => b.relevanceScore - a.relevanceScore);
+  } catch (error) {
+    console.error("AI 향상 검색 실패, 기본 검색으로 전환:", error);
+    return performBasicSearch(memos, searchQuery);
+  }
+};
+
+const expandSearchQuery = async (
+  query: string,
+  apiKey: string
+): Promise<string[]> => {
+  const prompt = `다음 검색어와 관련된 유사어, 동의어, 관련 개념어를 한국어로 3-5개 제시해주세요.
+검색어: ${query}
+
+응답 형식: 단어1, 단어2, 단어3 (쉼표로 구분)`;
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: prompt,
+                },
+              ],
+            },
+          ],
+        }),
+      }
+    );
 
     if (!response.ok) {
-      throw new Error(`API 호출 실패: ${response.status}`);
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     const data = await response.json();
-    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    
-    // 결과 파싱
-    const results: SearchResult[] = [];
-    const matches = resultText.match(/\w+:\d+/g) || [];
-    
-    matches.forEach(match => {
-      const [id, scoreStr] = match.split(':');
-      const score = parseInt(scoreStr);
-      const memo = memos.find(m => m.id === id);
-      
-      if (memo && score > 30) {
-        results.push({
-          memo,
-          relevanceScore: score,
-          matchedKeywords: ['AI 매칭']
-        });
-      }
-    });
+    const expandedTerms = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    return results.sort((a, b) => b.relevanceScore - a.relevanceScore);
+    return expandedTerms
+      .split(",")
+      .map((term) => term.trim())
+      .filter((term) => term.length > 0)
+      .slice(0, 5);
   } catch (error) {
-    console.error('AI 문맥 검색 오류:', error);
+    console.error("검색어 확장 실패:", error);
     return [];
   }
+};
+
+const calculateRelevanceScore = async (
+  memo: Memo,
+  query: string,
+  expandedQuery: string[],
+  apiKey: string
+): Promise<number> => {
+  // Implementation of calculateRelevanceScore function
+  // This function should return a relevance score based on the memo and the expanded query
+  // You can use any method to calculate this score, such as cosine similarity, TF-IDF, etc.
+  // For now, we'll use a simple implementation
+  return 0; // Placeholder return, actual implementation needed
+};
+
+const extractMatchedTerms = (memo: Memo, terms: string[]): string[] => {
+  // Implementation of extractMatchedTerms function
+  // This function should return an array of matched terms from the memo
+  // For now, we'll use a simple implementation
+  return []; // Placeholder return, actual implementation needed
+};
+
+const performBasicSearch = (memos: Memo[], query: string): SearchResult[] => {
+  // Implementation of performBasicSearch function
+  // This function should return an array of SearchResult objects based on the basic search
+  // For now, we'll use a simple implementation
+  return []; // Placeholder return, actual implementation needed
 };

@@ -1,30 +1,25 @@
 import { organizeContentWithGemini } from "./geminiService";
 
-const DEVELOPER_API_KEY = "***REMOVED***";
+const getApiKey = () => import.meta.env.VITE_GEMINI_API_KEY;
 
 export const generateTagsWithGemini = async (
   content: string,
   apiKey: string
 ): Promise<string[]> => {
-  // apiKey가 비어있으면 기본 개발자 API 키 사용
-  const effectiveApiKey = apiKey.trim() || DEVELOPER_API_KEY;
+  const effectiveApiKey = apiKey || getApiKey();
 
-  const prompt = `
-다음 메모 내용을 분석하여 관련된 태그/키워드를 추출해주세요.
+  if (!effectiveApiKey) {
+    console.error("API 키가 설정되지 않았습니다.");
+    return [];
+  }
 
-요구사항:
-1. 메모의 핵심 주제와 관련된 태그를 추출
-2. 최대 5개까지만 추출
-3. 한국어로 추출
-4. 각 태그는 2-6글자 사이
-5. 쉼표로 구분하여 나열
-6. 태그만 반환하고 다른 설명은 하지 마세요
+  const prompt = `다음 메모 내용을 분석하여 핵심 키워드를 3-5개 추출해주세요. 
+키워드는 한국어로, 쉼표로 구분하여 나열해주세요.
 
 메모 내용:
 ${content}
 
-태그 (쉼표로 구분):
-`;
+응답 형식: 키워드1, 키워드2, 키워드3`;
 
   try {
     const response = await fetch(
@@ -44,40 +39,27 @@ ${content}
               ],
             },
           ],
-          generationConfig: {
-            temperature: 0.5,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 100,
-          },
         }),
       }
     );
 
     if (!response.ok) {
-      throw new Error(`API 호출 실패: ${response.status}`);
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     const data = await response.json();
+    const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    if (!data.candidates || data.candidates.length === 0) {
-      return [];
-    }
+    // 키워드 추출 및 정리
+    const keywords = generatedText
+      .split(",")
+      .map((keyword) => keyword.trim())
+      .filter((keyword) => keyword.length > 0)
+      .slice(0, 5); // 최대 5개로 제한
 
-    const tagsText = data.candidates[0].content.parts[0].text;
-    const tags = tagsText
-      .split(/[,\n]/) // 쉼표와 줄바꿈으로 분리
-      .map((tag: string) => tag.trim().replace(/^#/, "")) // 앞의 # 제거
-      .filter(
-        (tag: string) =>
-          tag.length > 0 && tag.length <= 10 && !/^\d+$/.test(tag)
-      ) // 숫자만 있는 태그 제외
-      .slice(0, 5);
-
-    console.log("생성된 태그:", tags); // 디버깅용 로그
-    return tags;
+    return keywords;
   } catch (error) {
-    console.error("태그 생성 오류:", error);
+    console.error("태그 생성 중 오류:", error);
     return [];
   }
 };
