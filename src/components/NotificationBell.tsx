@@ -1,27 +1,31 @@
-
-import React, { useState, useEffect } from 'react';
-import { Bell, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import React, { useState, useEffect } from "react";
+import { Bell, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover';
-import { NotificationService, NotificationItem } from '@/services/notificationService';
+} from "@/components/ui/popover";
+import {
+  NotificationService,
+  NotificationItem,
+} from "@/services/notificationService";
 
 interface NotificationBellProps {
   onNotificationClick: (memoId: string) => void;
 }
 
 export const NotificationBell: React.FC<NotificationBellProps> = ({
-  onNotificationClick
+  onNotificationClick,
 }) => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const notificationService = NotificationService.getInstance();
 
   useEffect(() => {
-    const handleNotificationsUpdate = (updatedNotifications: NotificationItem[]) => {
+    const handleNotificationsUpdate = (
+      updatedNotifications: NotificationItem[]
+    ) => {
       setNotifications(updatedNotifications);
       setUnreadCount(notificationService.getUnreadCount());
     };
@@ -47,7 +51,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
           <Bell className="w-4 h-4" />
           {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-              {unreadCount > 9 ? '9+' : unreadCount}
+              {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
         </Button>
@@ -57,23 +61,25 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
           <div className="flex items-center justify-between">
             <h3 className="font-medium">알림</h3>
             {unreadCount > 0 && (
-              <span className="text-sm text-gray-500">{unreadCount}개의 새 알림</span>
+              <span className="text-sm text-gray-500">
+                {unreadCount}개의 새 알림
+              </span>
             )}
           </div>
-          
+
           {notifications.length === 0 ? (
             <p className="text-sm text-gray-500 text-center py-4">
               새로운 알림이 없습니다.
             </p>
           ) : (
             <div className="space-y-2 max-h-64 overflow-y-auto">
-              {notifications.slice(0, 10).map((notification) => (
+              {(notifications || []).slice(0, 10).map((notification) => (
                 <div
                   key={notification.id}
                   className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                    notification.isRead 
-                      ? 'bg-gray-50 border-gray-200' 
-                      : 'bg-blue-50 border-blue-200'
+                    notification.isRead
+                      ? "bg-gray-50 border-gray-200"
+                      : "bg-blue-50 border-blue-200"
                   }`}
                   onClick={() => handleNotificationClick(notification)}
                 >
@@ -86,7 +92,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                         {notification.message}
                       </p>
                       <p className="text-xs text-gray-400 mt-1">
-                        {notification.createdAt.toLocaleString('ko-KR')}
+                        {notification.createdAt.toLocaleString("ko-KR")}
                       </p>
                     </div>
                     {!notification.isRead && (

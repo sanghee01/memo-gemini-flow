@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Edit3, Sparkles, Download, Loader2, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Memo } from "@/types/memo";
@@ -7,13 +7,14 @@ import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import { toast } from "@/components/ui/use-toast";
 import { MarkdownImage } from "./MarkdownImage";
+import { MemoLockDialog } from "./MemoLockDialog";
 
 interface MemoViewerProps {
   memo: Memo;
   onEdit: () => void;
   onOrganize: () => void;
   isOrganizing?: boolean;
-  onUnlock?: () => void;
+  onMemoUpdate?: (updatedMemo: Memo) => void;
 }
 
 export const MemoViewer: React.FC<MemoViewerProps> = ({
@@ -21,8 +22,10 @@ export const MemoViewer: React.FC<MemoViewerProps> = ({
   onEdit,
   onOrganize,
   isOrganizing = false,
-  onUnlock,
+  onMemoUpdate,
 }) => {
+  const [showUnlockDialog, setShowUnlockDialog] = useState(false);
+  const [isUnlocked, setIsUnlocked] = useState(!memo.isLocked);
   const handleDownload = () => {
     const markdownContent = `# ${memo.title || "제목 없음"}\n\n${memo.content}`;
     const blob = new Blob([markdownContent], { type: "text/markdown" });
@@ -48,67 +51,67 @@ export const MemoViewer: React.FC<MemoViewerProps> = ({
 
     // 마크다운 컴포넌트 스타일 정의
     const markdownComponents = {
-      ul: ({ children }: any) => (
+      ul: ({ children }: { children: React.ReactNode }) => (
         <ul className="list-disc pl-6 space-y-1 my-4">{children}</ul>
       ),
-      ol: ({ children }: any) => (
+      ol: ({ children }: { children: React.ReactNode }) => (
         <ol className="list-decimal pl-6 space-y-1 my-4">{children}</ol>
       ),
-      li: ({ children }: any) => (
+      li: ({ children }: { children: React.ReactNode }) => (
         <li className="text-gray-700 leading-relaxed">{children}</li>
       ),
-      h1: ({ children }: any) => (
+      h1: ({ children }: { children: React.ReactNode }) => (
         <h1 className="text-3xl font-bold text-gray-900 mt-8 mb-4 pb-2 border-b border-gray-200">
           {children}
         </h1>
       ),
-      h2: ({ children }: any) => (
+      h2: ({ children }: { children: React.ReactNode }) => (
         <h2 className="text-2xl font-semibold text-gray-800 mt-6 mb-3">
           {children}
         </h2>
       ),
-      h3: ({ children }: any) => (
+      h3: ({ children }: { children: React.ReactNode }) => (
         <h3 className="text-xl font-medium text-gray-800 mt-5 mb-2">
           {children}
         </h3>
       ),
-      h4: ({ children }: any) => (
+      h4: ({ children }: { children: React.ReactNode }) => (
         <h4 className="text-lg font-medium text-gray-800 mt-4 mb-2">
           {children}
         </h4>
       ),
-      h5: ({ children }: any) => (
+      h5: ({ children }: { children: React.ReactNode }) => (
         <h5 className="text-base font-medium text-gray-800 mt-3 mb-2">
           {children}
         </h5>
       ),
-      h6: ({ children }: any) => (
+      h6: ({ children }: { children: React.ReactNode }) => (
         <h6 className="text-sm font-medium text-gray-800 mt-3 mb-2">
           {children}
         </h6>
       ),
-      p: ({ children }: any) => (
+      p: ({ children }: { children: React.ReactNode }) => (
         <p className="text-gray-700 leading-relaxed mb-4">{children}</p>
       ),
-      blockquote: ({ children }: any) => (
+      blockquote: ({ children }: { children: React.ReactNode }) => (
         <blockquote className="border-l-4 border-blue-400 pl-4 my-4 text-gray-600 italic bg-blue-50 py-2 rounded-r">
           {children}
         </blockquote>
       ),
-      code: ({ children }: any) => (
+      code: ({ children }: { children: React.ReactNode }) => (
         <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono text-gray-800">
           {children}
         </code>
       ),
-      pre: ({ children }: any) => (
+      pre: ({ children }: { children: React.ReactNode }) => (
         <pre className="bg-gray-100 p-4 rounded-lg overflow-x-auto my-4 border">
           {children}
         </pre>
       ),
-      strong: ({ children }: any) => (
+      strong: ({ children }: { children: React.ReactNode }) => (
         <strong className="font-bold text-gray-900">{children}</strong>
       ),
-      em: ({ children }: any) => (
+      em: ({ children }: { children: React.ReactNode }) => (
         <em className="italic text-gray-800">{children}</em>
       ),
     };
@@ -179,8 +182,32 @@ export const MemoViewer: React.FC<MemoViewerProps> = ({
     return <div>{parts}</div>;
   };
 
+  const handleUnlock = (inputPassword: string) => {
+    if (inputPassword === memo.password) {
+      setIsUnlocked(true);
+      if (onMemoUpdate) {
+        onMemoUpdate({
+          ...memo,
+          isLocked: false,
+          password: undefined,
+        });
+      }
+      toast({
+        title: "잠금 해제 성공",
+        description: "메모 잠금이 해제되었습니다.",
+      });
+      return true;
+    }
+    toast({
+      title: "잠금 해제 실패",
+      description: "비밀번호가 올바르지 않습니다.",
+      variant: "destructive",
+    });
+    return false;
+  };
+
   // 잠긴 메모인 경우 제목만 표시
-  if (memo.isLocked && onUnlock) {
+  if (memo.isLocked && !isUnlocked) {
     return (
       <div className="bg-white rounded-xl shadow-lg">
         <div className="flex items-center justify-center p-12">
@@ -192,7 +219,7 @@ export const MemoViewer: React.FC<MemoViewerProps> = ({
             <p className="text-gray-600 mb-6">
               이 메모는 잠겨있습니다. 내용을 보려면 잠금을 해제하세요.
             </p>
-            <Button onClick={onUnlock} className="mr-2">
+            <Button onClick={() => setShowUnlockDialog(true)} className="mr-2">
               잠금 해제
             </Button>
             <Button variant="outline" onClick={onEdit}>
@@ -200,6 +227,14 @@ export const MemoViewer: React.FC<MemoViewerProps> = ({
             </Button>
           </div>
         </div>
+
+        <MemoLockDialog
+          open={showUnlockDialog}
+          onOpenChange={setShowUnlockDialog}
+          isLocked={true}
+          onLock={() => {}} // 사용하지 않음
+          onUnlock={handleUnlock}
+        />
       </div>
     );
   }
@@ -216,14 +251,14 @@ export const MemoViewer: React.FC<MemoViewerProps> = ({
           {/* 태그 표시 */}
           {memo.tags && memo.tags.length > 0 && (
             <div className="flex flex-wrap gap-1 mb-3">
-              {memo.tags.map((tag, index) => (
+              {memo.tags?.map((tag, index) => (
                 <span
                   key={index}
                   className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full"
                 >
                   #{tag}
                 </span>
-              ))}
+              )) || []}
             </div>
           )}
 

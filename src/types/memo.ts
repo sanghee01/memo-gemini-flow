@@ -1,4 +1,3 @@
-
 export interface Memo {
   id: string;
   title: string;
@@ -7,7 +6,7 @@ export interface Memo {
   updatedAt: Date;
   isOrganized: boolean;
   tags?: string[];
-  importance?: 'low' | 'medium' | 'high';
+  importance?: "low" | "medium" | "high";
   color?: string;
   isLocked?: boolean;
   password?: string;
@@ -18,9 +17,9 @@ export interface Memo {
   category?: string;
 }
 
-export type ViewMode = 'list' | 'gallery';
-export type SortBy = 'updatedAt' | 'createdAt' | 'importance' | 'title';
-export type FilterBy = 'all' | 'category' | 'importance';
+export type ViewMode = "list" | "gallery";
+export type SortBy = "updatedAt" | "createdAt" | "importance" | "title";
+export type FilterBy = "all" | "category" | "importance";
 
 export interface SearchResult {
   memo: Memo;

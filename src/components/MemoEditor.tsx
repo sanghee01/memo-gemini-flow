@@ -22,6 +22,7 @@ import { MemoReminderSelector } from "./MemoReminderSelector";
 import { MemoCategorySelector } from "./MemoCategorySelector";
 import { toast } from "@/components/ui/use-toast";
 import { generateTagsWithGemini } from "@/services/aiTagService";
+import { useGemini } from "@/contexts/GeminiContext";
 
 interface MemoEditorProps {
   memo: Memo;
@@ -40,6 +41,7 @@ export const MemoEditor: React.FC<MemoEditorProps> = ({
   onOrganize,
   isOrganizing,
 }) => {
+  const { apiKey } = useGemini();
   const [title, setTitle] = useState(memo.title);
   const [content, setContent] = useState(memo.content);
   const [importance, setImportance] = useState<"low" | "medium" | "high">(
@@ -227,18 +229,49 @@ export const MemoEditor: React.FC<MemoEditorProps> = ({
       return;
     }
 
+    if (!apiKey) {
+      toast({
+        title: "API 키 없음",
+        description:
+          "Gemini API 키가 설정되지 않았습니다. .env 파일을 확인해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsGeneratingTags(true);
     try {
-      const generatedTags = await generateTagsWithGemini(content, "");
-      setTags((prev) => [...new Set([...prev, ...generatedTags])]);
-      toast({
-        title: "태그 생성 완료",
-        description: `${generatedTags.length}개의 태그가 생성되었습니다.`,
+      console.log("태그 생성 시작:", {
+        contentLength: content.length,
+        hasApiKey: !!apiKey,
       });
+      const generatedTags = await generateTagsWithGemini(content, apiKey);
+      console.log("생성된 태그:", generatedTags);
+
+      if (generatedTags.length > 0) {
+        setTags((prev) => [...new Set([...prev, ...generatedTags])]);
+        toast({
+          title: "태그 생성 완료",
+          description: `${
+            generatedTags.length
+          }개의 태그가 생성되었습니다: ${generatedTags.join(", ")}`,
+        });
+      } else {
+        toast({
+          title: "태그 생성 결과 없음",
+          description:
+            "AI가 태그를 생성하지 못했습니다. 메모 내용을 더 구체적으로 작성해보세요.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
+      console.error("태그 생성 오류:", error);
       toast({
         title: "태그 생성 실패",
-        description: "태그 생성 중 오류가 발생했습니다.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "태그 생성 중 오류가 발생했습니다.",
         variant: "destructive",
       });
     } finally {

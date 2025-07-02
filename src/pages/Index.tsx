@@ -56,24 +56,17 @@ const Index = () => {
     }
   }, [memos]);
 
-  // 알림 확인 및 처리
+  // 알림 서비스 초기화 및 잊힌 메모 체크
   useEffect(() => {
-    const checkNotifications = () => {
-      const notifications = NotificationService.checkReminders(memos);
-      notifications.forEach((notification) => {
-        toast({
-          title: "리마인더 알림",
-          description: notification.message,
-        });
-      });
-    };
+    const notificationService = NotificationService.getInstance();
 
-    // 페이지 로드 시 한 번 확인
-    checkNotifications();
+    // 브라우저 알림 권한 요청
+    notificationService.requestNotificationPermission();
 
-    // 1분마다 알림 확인
-    const interval = setInterval(checkNotifications, 60000);
-    return () => clearInterval(interval);
+    // 잊힌 메모 체크 (7일 이상 보지 않은 중요한 메모)
+    if (memos.length > 0) {
+      notificationService.checkForgottenMemos(memos);
+    }
   }, [memos]);
 
   const handleSaveMemo = (memo: Memo) => {
@@ -115,6 +108,8 @@ const Index = () => {
   const handleCloseEditor = () => {
     setIsEditing(false);
     setEditingMemo(null);
+    // 편집 취소 시 기존 선택된 메모가 있다면 다시 표시
+    // selectedMemo는 그대로 유지됨
   };
 
   const handleCloseViewer = () => {
@@ -141,7 +136,7 @@ const Index = () => {
         const updatedMemo = {
           ...memo,
           content: organizedContent,
-          updatedAt: new Date().toISOString(),
+          updatedAt: new Date(),
         };
 
         setMemos((prev) =>
@@ -181,11 +176,19 @@ const Index = () => {
     }
   };
 
+  // 메모들로부터 카테고리 목록 추출
+  const availableCategories = React.useMemo(() => {
+    const categories = memos
+      .map((memo) => memo.category)
+      .filter((category): category is string => Boolean(category));
+    return [...new Set(categories)];
+  }, [memos]);
+
   const filteredAndSortedMemos = React.useMemo(() => {
     let filtered =
-      isSearching && searchQuery
+      isSearching && searchQuery && searchResults
         ? searchResults.map((result) => result.memo)
-        : memos;
+        : memos || [];
 
     // 필터링
     if (filterBy !== "all") {
@@ -217,16 +220,20 @@ const Index = () => {
     // 정렬
     const sorted = [...filtered].sort((a, b) => {
       switch (sortBy) {
-        case "newest":
-          return (
-            new Date(b.updatedAt || b.createdAt).getTime() -
-            new Date(a.updatedAt || a.createdAt).getTime()
-          );
-        case "oldest":
-          return (
-            new Date(a.updatedAt || a.createdAt).getTime() -
-            new Date(b.updatedAt || b.createdAt).getTime()
-          );
+        case "newest": {
+          const dateA = new Date(a.updatedAt || a.createdAt);
+          const dateB = new Date(b.updatedAt || b.createdAt);
+          const timeA = isNaN(dateA.getTime()) ? 0 : dateA.getTime();
+          const timeB = isNaN(dateB.getTime()) ? 0 : dateB.getTime();
+          return timeB - timeA;
+        }
+        case "oldest": {
+          const dateA = new Date(a.updatedAt || a.createdAt);
+          const dateB = new Date(b.updatedAt || b.createdAt);
+          const timeA = isNaN(dateA.getTime()) ? 0 : dateA.getTime();
+          const timeB = isNaN(dateB.getTime()) ? 0 : dateB.getTime();
+          return timeA - timeB;
+        }
         case "alphabetical":
           return a.title.localeCompare(b.title);
         case "color":
@@ -252,22 +259,26 @@ const Index = () => {
       <div className="container mx-auto px-4 py-6">
         <div className="mb-6">
           <SmartSearch
-            onSearch={handleSearch}
-            isSearching={isSearching}
-            placeholder="메모 검색 (AI 기반 스마트 검색)"
+            memos={memos}
+            onSearchResults={setSearchResults}
+            onClearSearch={() => {
+              setSearchQuery("");
+              setSearchResults([]);
+              setIsSearching(false);
+            }}
           />
         </div>
 
         <div className="flex flex-col lg:flex-row gap-6">
           {/* 메모 목록/갤러리 */}
-          <div className="flex-1">
+          <div className="lg:w-96 xl:w-[28rem] flex-shrink-0">
             <div className="flex justify-between items-center mb-4">
               <MemoSortFilter
                 sortBy={sortBy}
                 filterBy={filterBy}
                 onSortChange={setSortBy}
                 onFilterChange={setFilterBy}
-                memos={memos}
+                categories={availableCategories}
               />
               <ViewModeToggle
                 viewMode={viewMode}
@@ -278,47 +289,86 @@ const Index = () => {
             {viewMode === "list" ? (
               <MemoList
                 memos={filteredAndSortedMemos}
+                selectedMemo={selectedMemo}
                 onSelectMemo={handleSelectMemo}
                 onEditMemo={handleEditMemo}
                 onDeleteMemo={handleDeleteMemo}
-                selectedMemoId={selectedMemo?.id}
-                searchResults={isSearching ? searchResults : undefined}
               />
             ) : (
               <MemoGallery
                 memos={filteredAndSortedMemos}
+                selectedMemo={selectedMemo}
                 onSelectMemo={handleSelectMemo}
                 onEditMemo={handleEditMemo}
                 onDeleteMemo={handleDeleteMemo}
-                selectedMemoId={selectedMemo?.id}
               />
             )}
           </div>
 
-          {/* 메모 뷰어 */}
-          {selectedMemo && (
-            <div className="lg:w-1/2">
+          {/* 메모 에디터/뷰어 */}
+          <div className="flex-1 min-w-0">
+            {isEditing ? (
+              <MemoEditor
+                memo={
+                  editingMemo || {
+                    id: crypto.randomUUID(),
+                    title: "",
+                    content: "",
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                    isOrganized: false,
+                    importance: "medium",
+                    tags: [],
+                  }
+                }
+                availableCategories={availableCategories}
+                onSave={handleSaveMemo}
+                onCancel={handleCloseEditor}
+                onOrganize={
+                  editingMemo
+                    ? () => handleAiOrganize(editingMemo.id)
+                    : undefined
+                }
+                isOrganizing={isLoading}
+              />
+            ) : selectedMemo ? (
               <MemoViewer
                 memo={selectedMemo}
-                onClose={handleCloseViewer}
                 onEdit={() => handleEditMemo(selectedMemo)}
-                onDelete={() => handleDeleteMemo(selectedMemo.id)}
-                onAiOrganize={() => handleAiOrganize(selectedMemo.id)}
-                isLoading={isLoading}
+                onOrganize={() => handleAiOrganize(selectedMemo.id)}
+                isOrganizing={isLoading}
+                onMemoUpdate={(updatedMemo) => {
+                  setMemos((prev) =>
+                    prev.map((m) => (m.id === updatedMemo.id ? updatedMemo : m))
+                  );
+                  setSelectedMemo(updatedMemo);
+                }}
               />
-            </div>
-          )}
+            ) : (
+              <div className="bg-white rounded-xl shadow-lg p-12">
+                <div className="text-center">
+                  <div className="text-6xl mb-6">📝</div>
+                  <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                    메모를 선택하거나 새로 작성해보세요
+                  </h2>
+                  <p className="text-gray-600 mb-8">
+                    왼쪽에서 메모를 선택하여 내용을 확인하거나,
+                    <br />
+                    상단의 "새 메모" 버튼을 클릭하여 새로운 메모를 작성할 수
+                    있습니다.
+                  </p>
+                  <button
+                    onClick={handleNewMemo}
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                  >
+                    새 메모 작성하기
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-
-      {/* 메모 에디터 모달 */}
-      {isEditing && (
-        <MemoEditor
-          memo={editingMemo}
-          onSave={handleSaveMemo}
-          onClose={handleCloseEditor}
-        />
-      )}
     </div>
   );
 };
