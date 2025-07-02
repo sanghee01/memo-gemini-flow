@@ -116,7 +116,16 @@ export const MemoEditor: React.FC<MemoEditorProps> = ({
 
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    console.log("선택된 파일:", file);
+
     if (!file) return;
+
+    console.log("파일 정보:", {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      lastModified: file.lastModified,
+    });
 
     if (!file.type.startsWith("image/")) {
       toast({
@@ -124,23 +133,65 @@ export const MemoEditor: React.FC<MemoEditorProps> = ({
         description: "이미지 파일만 업로드할 수 있습니다.",
         variant: "destructive",
       });
+      // 파일 input 초기화
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
       return;
     }
 
     try {
+      console.log("이미지 업로드 시작...");
       const imageData = await handleImageUpload(file);
+      console.log("업로드 완료, 데이터 길이:", imageData.length);
+      console.log("데이터 시작 부분:", imageData.substring(0, 50));
+
       const imageMarkdown = `\n![${file.name}](${imageData})\n`;
-      setContent((prev) => prev + imageMarkdown);
+      console.log("생성된 마크다운:", imageMarkdown.substring(0, 100));
+
+      // 커서 위치에 이미지 삽입
+      const textarea = textareaRef.current;
+      const cursorPosition = textarea
+        ? textarea.selectionStart
+        : content.length;
+
+      setContent((prev) => {
+        const textBefore = prev.substring(0, cursorPosition);
+        const textAfter = prev.substring(cursorPosition);
+        const newContent = textBefore + imageMarkdown + textAfter;
+        console.log("새로운 컨텐츠 길이:", newContent.length);
+        console.log("커서 위치:", cursorPosition);
+        return newContent;
+      });
+
+      // 커서를 이미지 뒤로 이동
+      setTimeout(() => {
+        if (textarea) {
+          const newCursorPosition = cursorPosition + imageMarkdown.length;
+          textarea.focus();
+          textarea.setSelectionRange(newCursorPosition, newCursorPosition);
+        }
+      }, 0);
+
       toast({
         title: "이미지 업로드 완료",
         description: `${file.name}이 메모에 추가되었습니다.`,
       });
     } catch (error) {
+      console.error("이미지 업로드 오류:", error);
       toast({
         title: "업로드 실패",
-        description: "이미지 업로드 중 오류가 발생했습니다.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "이미지 업로드 중 오류가 발생했습니다.",
         variant: "destructive",
       });
+    } finally {
+      // 파일 input 초기화 (같은 파일 재선택 가능하도록)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 

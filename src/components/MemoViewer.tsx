@@ -3,7 +3,10 @@ import { Edit3, Sparkles, Download, Loader2, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Memo } from "@/types/memo";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 import { toast } from "@/components/ui/use-toast";
+import { MarkdownImage } from "./MarkdownImage";
 
 interface MemoViewerProps {
   memo: Memo;
@@ -33,6 +36,113 @@ export const MemoViewer: React.FC<MemoViewerProps> = ({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  // 커스텀 마크다운 렌더링 함수
+  const renderContentWithImages = (content: string) => {
+    const imageRegex = /!\[(.*?)\]\((.*?)\)/g;
+    const parts = [];
+    let lastIndex = 0;
+
+    const matches = Array.from(content.matchAll(imageRegex));
+
+    for (let i = 0; i < matches.length; i++) {
+      const match = matches[i];
+
+      // 이미지 앞의 텍스트 추가
+      if (match.index && match.index > lastIndex) {
+        const textBefore = content.substring(lastIndex, match.index);
+        if (textBefore.trim()) {
+          parts.push(
+            <ReactMarkdown
+              key={`text-${lastIndex}`}
+              remarkPlugins={[remarkGfm]}
+            >
+              {textBefore}
+            </ReactMarkdown>
+          );
+        }
+      }
+
+      // 이미지 컴포넌트 추가
+      const [, alt, src] = match;
+      console.log("Direct image rendering:", {
+        alt,
+        srcLength: src.length,
+        srcPreview: src.substring(0, 50),
+        isBase64: src.startsWith("data:image"),
+      });
+
+      parts.push(
+        <MarkdownImage key={`img-${match.index}`} src={src} alt={alt} />
+      );
+
+      lastIndex = (match.index || 0) + match[0].length;
+    }
+
+    // 남은 텍스트 추가
+    if (lastIndex < content.length) {
+      const remainingText = content.substring(lastIndex);
+      if (remainingText.trim()) {
+        parts.push(
+          <ReactMarkdown key={`text-${lastIndex}`} remarkPlugins={[remarkGfm]}>
+            {remainingText}
+          </ReactMarkdown>
+        );
+      }
+    }
+
+    // 이미지가 없으면 기본 ReactMarkdown 사용
+    if (parts.length === 0) {
+      return (
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            ul: ({ children }) => (
+              <ul className="list-disc pl-6 space-y-1 my-4">{children}</ul>
+            ),
+            ol: ({ children }) => (
+              <ol className="list-decimal pl-6 space-y-1 my-4">{children}</ol>
+            ),
+            li: ({ children }) => (
+              <li className="text-gray-700 leading-relaxed">{children}</li>
+            ),
+            h1: ({ children }) => (
+              <h1 className="text-3xl font-bold text-gray-900 mt-8 mb-4 pb-2 border-b border-gray-200">
+                {children}
+              </h1>
+            ),
+            h2: ({ children }) => (
+              <h2 className="text-2xl font-semibold text-gray-800 mt-6 mb-3">
+                {children}
+              </h2>
+            ),
+            h3: ({ children }) => (
+              <h3 className="text-xl font-medium text-gray-800 mt-5 mb-2">
+                {children}
+              </h3>
+            ),
+            p: ({ children }) => (
+              <p className="text-gray-700 leading-relaxed mb-4">{children}</p>
+            ),
+            blockquote: ({ children }) => (
+              <blockquote className="border-l-4 border-blue-400 pl-4 my-4 text-gray-600 italic bg-blue-50 py-2 rounded-r">
+                {children}
+              </blockquote>
+            ),
+            code: ({ children }) => (
+              <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono text-gray-800">
+                {children}
+              </code>
+            ),
+          }}
+        >
+          {content}
+        </ReactMarkdown>
+      );
+    }
+
+    return <div>{parts}</div>;
   };
 
   // 잠긴 메모인 경우 제목만 표시
@@ -140,87 +250,40 @@ export const MemoViewer: React.FC<MemoViewerProps> = ({
       {/* Content */}
       <div className="p-6">
         {memo.content ? (
-          <div className="prose prose-slate max-w-none">
-            <ReactMarkdown
-              components={{
-                img: ({ src, alt }) => (
-                  <img
-                    src={src}
-                    alt={alt}
-                    className="max-w-full h-auto rounded-lg shadow-md my-4"
-                    style={{ maxHeight: "400px", objectFit: "contain" }}
-                  />
-                ),
-                ul: ({ children }) => (
-                  <ul className="list-disc pl-6 space-y-1 my-4">{children}</ul>
-                ),
-                ol: ({ children }) => (
-                  <ol className="list-decimal pl-6 space-y-1 my-4">
-                    {children}
-                  </ol>
-                ),
-                li: ({ children }) => {
-                  return (
-                    <li className="text-gray-700 leading-relaxed">
-                      {children}
-                    </li>
-                  );
-                },
-                h1: ({ children }) => (
-                  <h1 className="text-3xl font-bold text-gray-900 mt-8 mb-4 pb-2 border-b border-gray-200">
-                    {children}
-                  </h1>
-                ),
-                h2: ({ children }) => (
-                  <h2 className="text-2xl font-semibold text-gray-800 mt-6 mb-3">
-                    {children}
-                  </h2>
-                ),
-                h3: ({ children }) => (
-                  <h3 className="text-xl font-medium text-gray-800 mt-5 mb-2">
-                    {children}
-                  </h3>
-                ),
-                h4: ({ children }) => (
-                  <h4 className="text-lg font-medium text-gray-800 mt-4 mb-2">
-                    {children}
-                  </h4>
-                ),
-                h5: ({ children }) => (
-                  <h5 className="text-base font-medium text-gray-800 mt-3 mb-2">
-                    {children}
-                  </h5>
-                ),
-                h6: ({ children }) => (
-                  <h6 className="text-sm font-medium text-gray-800 mt-3 mb-2">
-                    {children}
-                  </h6>
-                ),
-                p: ({ children }) => (
-                  <p className="text-gray-700 leading-relaxed mb-4">
-                    {children}
-                  </p>
-                ),
-                blockquote: ({ children }) => (
-                  <blockquote className="border-l-4 border-blue-400 pl-4 my-4 text-gray-600 italic bg-blue-50 py-2 rounded-r">
-                    {children}
-                  </blockquote>
-                ),
-                code: ({ children }) => (
-                  <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono text-gray-800">
-                    {children}
-                  </code>
-                ),
-                pre: ({ children }) => (
-                  <pre className="bg-gray-100 p-4 rounded-lg overflow-x-auto my-4 border">
-                    {children}
-                  </pre>
-                ),
-              }}
-            >
-              {memo.content}
-            </ReactMarkdown>
-          </div>
+          <>
+            {(() => {
+              console.log("=== MemoViewer Debug ===");
+              console.log("memo.content length:", memo.content.length);
+              console.log(
+                "memo.content preview:",
+                memo.content.substring(0, 300)
+              );
+              console.log("Contains ![:", memo.content.includes("!["));
+              console.log(
+                "Contains data:image:",
+                memo.content.includes("data:image")
+              );
+
+              // 이미지 마크다운 패턴 찾기
+              const imageRegex = /!\[(.*?)\]\((.*?)\)/g;
+              const matches = memo.content.matchAll(imageRegex);
+              let matchCount = 0;
+              for (const match of matches) {
+                matchCount++;
+                console.log(`Image ${matchCount}:`, {
+                  fullMatch: match[0].substring(0, 100) + "...",
+                  alt: match[1],
+                  srcLength: match[2].length,
+                  srcPreview: match[2].substring(0, 50) + "...",
+                });
+              }
+
+              return null;
+            })()}
+            <div className="prose prose-slate max-w-none">
+              {renderContentWithImages(memo.content)}
+            </div>
+          </>
         ) : (
           <div className="text-center py-12 text-gray-500">
             <div className="text-4xl mb-4">📝</div>
