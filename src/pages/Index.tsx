@@ -1,10 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { MemoList } from '@/components/MemoList';
 import { MemoEditor } from '@/components/MemoEditor';
 import { MemoViewer } from '@/components/MemoViewer';
 import { Header } from '@/components/Header';
-import { GeminiKeyDialog } from '@/components/GeminiKeyDialog';
 import { Memo } from '@/types/memo';
 import { useGemini } from '@/contexts/GeminiContext';
 import { organizeContentWithGemini } from '@/services/geminiService';
@@ -16,7 +15,7 @@ const Index = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [isViewing, setIsViewing] = useState(false);
   const [isOrganizing, setIsOrganizing] = useState(false);
-  const { apiKey, setApiKey } = useGemini();
+  const { apiKey } = useGemini();
 
   const handleCreateMemo = () => {
     const newMemo: Memo = {
@@ -61,15 +60,6 @@ const Index = () => {
   };
 
   const handleOrganizeMemo = async (memo: Memo) => {
-    if (!apiKey) {
-      toast({
-        title: "API 키 필요",
-        description: "먼저 Gemini API 키를 설정해주세요.",
-        variant: "destructive"
-      });
-      return;
-    }
-
     if (!memo.content.trim()) {
       toast({
         title: "내용 없음",
@@ -113,11 +103,6 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <GeminiKeyDialog 
-        open={!apiKey} 
-        onApiKeySubmit={setApiKey}
-      />
-      
       <Header onCreateMemo={handleCreateMemo} />
       
       <div className="container mx-auto px-4 py-8">

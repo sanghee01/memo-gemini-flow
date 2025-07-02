@@ -1,10 +1,8 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext } from 'react';
 
 interface GeminiContextType {
-  apiKey: string | null;
-  setApiKey: (key: string) => void;
-  clearApiKey: () => void;
+  apiKey: string;
 }
 
 const GeminiContext = createContext<GeminiContextType | undefined>(undefined);
@@ -22,27 +20,10 @@ interface GeminiProviderProps {
 }
 
 export const GeminiProvider: React.FC<GeminiProviderProps> = ({ children }) => {
-  const [apiKey, setApiKeyState] = useState<string | null>(null);
-
-  useEffect(() => {
-    const savedKey = localStorage.getItem('gemini-api-key');
-    if (savedKey) {
-      setApiKeyState(savedKey);
-    }
-  }, []);
-
-  const setApiKey = (key: string) => {
-    localStorage.setItem('gemini-api-key', key);
-    setApiKeyState(key);
-  };
-
-  const clearApiKey = () => {
-    localStorage.removeItem('gemini-api-key');
-    setApiKeyState(null);
-  };
+  const apiKey = '***REMOVED***';
 
   return (
-    <GeminiContext.Provider value={{ apiKey, setApiKey, clearApiKey }}>
+    <GeminiContext.Provider value={{ apiKey }}>
       {children}
     </GeminiContext.Provider>
   );
