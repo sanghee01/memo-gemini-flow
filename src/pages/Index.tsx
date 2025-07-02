@@ -1,12 +1,17 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MemoList } from '@/components/MemoList';
 import { MemoEditor } from '@/components/MemoEditor';
 import { MemoViewer } from '@/components/MemoViewer';
+import { MemoGallery } from '@/components/MemoGallery';
 import { Header } from '@/components/Header';
-import { Memo } from '@/types/memo';
+import { SmartSearch } from '@/components/SmartSearch';
+import { ViewModeToggle } from '@/components/ViewModeToggle';
+import { NotificationBell } from '@/components/NotificationBell';
+import { Memo, ViewMode, SearchResult } from '@/types/memo';
 import { useGemini } from '@/contexts/GeminiContext';
 import { organizeContentWithGemini } from '@/services/geminiService';
+import { NotificationService } from '@/services/notificationService';
 import { toast } from '@/components/ui/use-toast';
 
 const Index = () => {
@@ -15,7 +20,48 @@ const Index = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [isViewing, setIsViewing] = useState(false);
   const [isOrganizing, setIsOrganizing] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const { apiKey } = useGemini();
+  const notificationService = NotificationService.getInstance();
+
+  // 로컬 스토리지에서 메모 불러오기
+  useEffect(() => {
+    const savedMemos = localStorage.getItem('sangmemo-memos');
+    if (savedMemos) {
+      try {
+        const parsedMemos = JSON.parse(savedMemos).map((memo: any) => ({
+          ...memo,
+          createdAt: new Date(memo.createdAt),
+          updatedAt: new Date(memo.updatedAt),
+          lastViewedAt: memo.lastViewedAt ? new Date(memo.lastViewedAt) : undefined
+        }));
+        setMemos(parsedMemos);
+      } catch (error) {
+        console.error('메모 로딩 오류:', error);
+      }
+    }
+  }, []);
+
+  // 메모 변경 시 로컬 스토리지에 저장
+  useEffect(() => {
+    if (memos.length > 0) {
+      localStorage.setItem('sangmemo-memos', JSON.stringify(memos));
+    }
+  }, [memos]);
+
+  // 알림 체크 (1분마다)
+  useEffect(() => {
+    const checkNotifications = () => {
+      notificationService.checkForgottenMemos(memos);
+    };
+
+    checkNotifications();
+    const interval = setInterval(checkNotifications, 60000); // 1분마다
+
+    return () => clearInterval(interval);
+  }, [memos]);
 
   const handleCreateMemo = () => {
     const newMemo: Memo = {
@@ -24,7 +70,12 @@ const Index = () => {
       content: '',
       createdAt: new Date(),
       updatedAt: new Date(),
-      isOrganized: false
+      isOrganized: false,
+      importance: 'medium',
+      color: '',
+      isLocked: false,
+      tags: [],
+      viewCount: 0
     };
     setMemos([newMemo, ...memos]);
     setSelectedMemo(newMemo);
@@ -36,6 +87,7 @@ const Index = () => {
     const updatedMemos = memos.map(m => m.id === memo.id ? memo : m);
     setMemos(updatedMemos);
     setIsEditing(false);
+    setIsViewing(true);
   };
 
   const handleDeleteMemo = (id: string) => {
@@ -48,12 +100,34 @@ const Index = () => {
   };
 
   const handleSelectMemo = (memo: Memo) => {
-    setSelectedMemo(memo);
+    // 조회수 및 마지막 조회 시간 업데이트
+    const updatedMemo = {
+      ...memo,
+      viewCount: (memo.viewCount || 0) + 1,
+      lastViewedAt: new Date()
+    };
+    
+    const updatedMemos = memos.map(m => m.id === memo.id ? updatedMemo : m);
+    setMemos(updatedMemos);
+    setSelectedMemo(updatedMemo);
     setIsEditing(false);
     setIsViewing(true);
   };
 
   const handleEditMemo = (memo: Memo) => {
+    // 잠긴 메모인 경우 비밀번호 확인
+    if (memo.isLocked && memo.password) {
+      const inputPassword = prompt('메모 비밀번호를 입력하세요:');
+      if (inputPassword !== memo.password) {
+        toast({
+          title: "접근 거부",
+          description: "비밀번호가 올바르지 않습니다.",
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+    
     setSelectedMemo(memo);
     setIsEditing(true);
     setIsViewing(false);
@@ -101,6 +175,25 @@ const Index = () => {
     }
   };
 
+  const handleSearchResults = (results: SearchResult[]) => {
+    setSearchResults(results);
+    setIsSearching(true);
+  };
+
+  const handleClearSearch = () => {
+    setSearchResults([]);
+    setIsSearching(false);
+  };
+
+  const handleNotificationClick = (memoId: string) => {
+    const memo = memos.find(m => m.id === memoId);
+    if (memo) {
+      handleSelectMemo(memo);
+    }
+  };
+
+  const displayMemos = isSearching ? searchResults.map(r => r.memo) : memos;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       <Header onCreateMemo={handleCreateMemo} />
@@ -109,13 +202,49 @@ const Index = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
           {/* Memo List */}
           <div className="lg:col-span-1">
-            <MemoList
-              memos={memos}
-              selectedMemo={selectedMemo}
-              onSelectMemo={handleSelectMemo}
-              onEditMemo={handleEditMemo}
-              onDeleteMemo={handleDeleteMemo}
-            />
+            <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-800">내 메모</h2>
+                <div className="flex items-center space-x-2">
+                  <NotificationBell onNotificationClick={handleNotificationClick} />
+                  <ViewModeToggle viewMode={viewMode} onViewModeChange={setViewMode} />
+                </div>
+              </div>
+              
+              <SmartSearch
+                memos={memos}
+                onSearchResults={handleSearchResults}
+                onClearSearch={handleClearSearch}
+              />
+
+              {isSearching && (
+                <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    검색 결과: {searchResults.length}개의 메모를 찾았습니다.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {viewMode === 'list' ? (
+              <MemoList
+                memos={displayMemos}
+                selectedMemo={selectedMemo}
+                onSelectMemo={handleSelectMemo}
+                onEditMemo={handleEditMemo}
+                onDeleteMemo={handleDeleteMemo}
+              />
+            ) : (
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <MemoGallery
+                  memos={displayMemos}
+                  selectedMemo={selectedMemo}
+                  onSelectMemo={handleSelectMemo}
+                  onEditMemo={handleEditMemo}
+                  onDeleteMemo={handleDeleteMemo}
+                />
+              </div>
+            )}
           </div>
 
           {/* Main Content Area */}

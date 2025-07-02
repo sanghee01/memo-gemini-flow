@@ -1,12 +1,17 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, X, Image, Upload } from 'lucide-react';
+import { Save, X, Image, Upload, Lock, Unlock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Memo } from '@/types/memo';
 import { useImageUpload } from '@/hooks/useImageUpload';
+import { MemoImportanceSelector } from './MemoImportanceSelector';
+import { MemoColorSelector } from './MemoColorSelector';
+import { MemoLockDialog } from './MemoLockDialog';
 import { toast } from '@/components/ui/use-toast';
+import { generateTagsWithGemini } from '@/services/aiTagService';
+import { useGemini } from '@/contexts/GeminiContext';
 
 interface MemoEditorProps {
   memo: Memo;
@@ -17,9 +22,18 @@ interface MemoEditorProps {
 export const MemoEditor: React.FC<MemoEditorProps> = ({ memo, onSave, onCancel }) => {
   const [title, setTitle] = useState(memo.title);
   const [content, setContent] = useState(memo.content);
+  const [importance, setImportance] = useState<'low' | 'medium' | 'high'>(memo.importance || 'medium');
+  const [color, setColor] = useState(memo.color || '');
+  const [isLocked, setIsLocked] = useState(memo.isLocked || false);
+  const [password, setPassword] = useState(memo.password || '');
+  const [showLockDialog, setShowLockDialog] = useState(false);
+  const [tags, setTags] = useState<string[]>(memo.tags || []);
+  const [isGeneratingTags, setIsGeneratingTags] = useState(false);
+  
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { uploading, handleImageUpload, handleImagePaste } = useImageUpload();
+  const { apiKey } = useGemini();
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -49,6 +63,11 @@ export const MemoEditor: React.FC<MemoEditorProps> = ({ memo, onSave, onCancel }
       ...memo,
       title: title.trim() || '제목 없음',
       content,
+      importance,
+      color,
+      isLocked,
+      password: isLocked ? password : undefined,
+      tags,
       updatedAt: new Date()
     };
     onSave(updatedMemo);
@@ -84,6 +103,57 @@ export const MemoEditor: React.FC<MemoEditorProps> = ({ memo, onSave, onCancel }
     }
   };
 
+  const handleLock = (newPassword: string) => {
+    setPassword(newPassword);
+    setIsLocked(true);
+    toast({
+      title: "메모 잠금 설정",
+      description: "메모가 성공적으로 잠겼습니다."
+    });
+  };
+
+  const handleUnlock = (inputPassword: string) => {
+    if (inputPassword === password) {
+      setIsLocked(false);
+      setPassword('');
+      toast({
+        title: "메모 잠금 해제",
+        description: "메모 잠금이 해제되었습니다."
+      });
+      return true;
+    }
+    return false;
+  };
+
+  const generateTags = async () => {
+    if (!content.trim()) {
+      toast({
+        title: "내용 없음",
+        description: "태그를 생성할 메모 내용이 없습니다.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsGeneratingTags(true);
+    try {
+      const generatedTags = await generateTagsWithGemini(content, apiKey);
+      setTags(prev => [...new Set([...prev, ...generatedTags])]);
+      toast({
+        title: "태그 생성 완료",
+        description: `${generatedTags.length}개의 태그가 생성되었습니다.`
+      });
+    } catch (error) {
+      toast({
+        title: "태그 생성 실패",
+        description: "태그 생성 중 오류가 발생했습니다.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGeneratingTags(false);
+    }
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-lg p-6">
       <div className="flex items-center justify-between mb-6">
@@ -97,6 +167,14 @@ export const MemoEditor: React.FC<MemoEditorProps> = ({ memo, onSave, onCancel }
           >
             {uploading ? <Upload className="w-4 h-4 animate-spin" /> : <Image className="w-4 h-4" />}
             이미지
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowLockDialog(true)}
+          >
+            {isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+            {isLocked ? '잠금됨' : '잠금'}
           </Button>
           <Button onClick={handleSave} size="sm">
             <Save className="w-4 h-4 mr-2" />
@@ -117,13 +195,24 @@ export const MemoEditor: React.FC<MemoEditorProps> = ({ memo, onSave, onCancel }
         className="hidden"
       />
 
-      <div className="space-y-4">
+      <div className="space-y-6">
         <div>
           <Input
             placeholder="메모 제목을 입력하세요..."
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className="text-lg font-medium"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <MemoImportanceSelector
+            importance={importance}
+            onChange={setImportance}
+          />
+          <MemoColorSelector
+            selectedColor={color}
+            onChange={setColor}
           />
         </div>
         
@@ -136,11 +225,45 @@ export const MemoEditor: React.FC<MemoEditorProps> = ({ memo, onSave, onCancel }
             className="min-h-[400px] resize-none text-base leading-relaxed"
           />
         </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-700">태그</label>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={generateTags}
+              disabled={isGeneratingTags}
+            >
+              {isGeneratingTags ? '생성 중...' : 'AI 태그 생성'}
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {tags.map((tag, index) => (
+              <span
+                key={index}
+                className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full flex items-center space-x-1 cursor-pointer hover:bg-blue-200"
+                onClick={() => setTags(tags.filter((_, i) => i !== index))}
+              >
+                <span>#{tag}</span>
+                <X className="w-3 h-3" />
+              </span>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="mt-4 text-sm text-gray-500">
         마지막 수정: {memo.updatedAt.toLocaleString('ko-KR')}
       </div>
+
+      <MemoLockDialog
+        open={showLockDialog}
+        onOpenChange={setShowLockDialog}
+        isLocked={isLocked}
+        onLock={handleLock}
+        onUnlock={handleUnlock}
+      />
     </div>
   );
 };
