@@ -1,19 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { MemoList } from '@/components/MemoList';
-import { MemoEditor } from '@/components/MemoEditor';
-import { MemoViewer } from '@/components/MemoViewer';
-import { MemoGallery } from '@/components/MemoGallery';
-import { Header } from '@/components/Header';
-import { SmartSearch } from '@/components/SmartSearch';
-import { ViewModeToggle } from '@/components/ViewModeToggle';
-import { MemoSortFilter } from '@/components/MemoSortFilter';
-import { NotificationBell } from '@/components/NotificationBell';
-import { Memo, ViewMode, SearchResult, SortBy, FilterBy } from '@/types/memo';
-import { organizeContentWithGemini } from '@/services/geminiService';
-import { NotificationService } from '@/services/notificationService';
-import { toast } from '@/components/ui/use-toast';
+import React, { useState, useEffect } from "react";
+import { MemoList } from "@/components/MemoList";
+import { MemoEditor } from "@/components/MemoEditor";
+import { MemoViewer } from "@/components/MemoViewer";
+import { MemoGallery } from "@/components/MemoGallery";
+import { Header } from "@/components/Header";
+import { SmartSearch } from "@/components/SmartSearch";
+import { ViewModeToggle } from "@/components/ViewModeToggle";
+import { MemoSortFilter } from "@/components/MemoSortFilter";
+import { NotificationBell } from "@/components/NotificationBell";
+import { Memo, ViewMode, SearchResult, SortBy, FilterBy } from "@/types/memo";
+import { organizeContentWithGemini } from "@/services/geminiService";
+import { NotificationService } from "@/services/notificationService";
+import { toast } from "@/components/ui/use-toast";
 
-const DEVELOPER_API_KEY = '***REMOVED***';
+const DEVELOPER_API_KEY = "***REMOVED***";
 
 const Index = () => {
   const [memos, setMemos] = useState<Memo[]>([]);
@@ -21,31 +21,36 @@ const Index = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [isViewing, setIsViewing] = useState(false);
   const [isOrganizing, setIsOrganizing] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [sortBy, setSortBy] = useState<SortBy>('updatedAt');
-  const [filterBy, setFilterBy] = useState<FilterBy>('all');
+  const [sortBy, setSortBy] = useState<SortBy>("updatedAt");
+  const [filterBy, setFilterBy] = useState<FilterBy>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>();
   const [lockedMemoToView, setLockedMemoToView] = useState<string | null>(null);
-  
+
   const notificationService = NotificationService.getInstance();
 
   // 로컬 스토리지에서 메모 불러오기
   useEffect(() => {
-    const savedMemos = localStorage.getItem('sangmemo-memos');
+    const savedMemos = localStorage.getItem("sangmemo-memos");
     if (savedMemos) {
       try {
         const parsedMemos = JSON.parse(savedMemos).map((memo: any) => ({
           ...memo,
           createdAt: new Date(memo.createdAt),
           updatedAt: new Date(memo.updatedAt),
-          lastViewedAt: memo.lastViewedAt ? new Date(memo.lastViewedAt) : undefined,
-          reminderDate: memo.reminderDate ? new Date(memo.reminderDate) : undefined
+          lastViewedAt: memo.lastViewedAt
+            ? new Date(memo.lastViewedAt)
+            : undefined,
+          reminderDate: memo.reminderDate
+            ? new Date(memo.reminderDate)
+            : undefined,
+          tags: memo.tags || [],
         }));
         setMemos(parsedMemos);
       } catch (error) {
-        console.error('메모 로딩 오류:', error);
+        console.error("메모 로딩 오류:", error);
       }
     }
   }, []);
@@ -53,7 +58,7 @@ const Index = () => {
   // 메모 변경 시 로컬 스토리지에 저장
   useEffect(() => {
     if (memos.length > 0) {
-      localStorage.setItem('sangmemo-memos', JSON.stringify(memos));
+      localStorage.setItem("sangmemo-memos", JSON.stringify(memos));
     }
   }, [memos]);
 
@@ -71,26 +76,29 @@ const Index = () => {
 
   // 메모 정렬 및 필터링
   const getSortedAndFilteredMemos = () => {
-    let filteredMemos = isSearching 
-      ? searchResults.map(r => r.memo) 
-      : memos;
+    let filteredMemos = isSearching ? searchResults.map((r) => r.memo) : memos;
 
     // 필터링
-    if (filterBy === 'category' && selectedCategory) {
-      filteredMemos = filteredMemos.filter(memo => memo.category === selectedCategory);
+    if (filterBy === "category" && selectedCategory) {
+      filteredMemos = filteredMemos.filter(
+        (memo) => memo.category === selectedCategory
+      );
     }
 
     // 정렬
     return filteredMemos.sort((a, b) => {
       switch (sortBy) {
-        case 'importance':
+        case "importance":
           const importanceOrder = { high: 3, medium: 2, low: 1 };
-          return (importanceOrder[b.importance || 'medium']) - (importanceOrder[a.importance || 'medium']);
-        case 'createdAt':
+          return (
+            importanceOrder[b.importance || "medium"] -
+            importanceOrder[a.importance || "medium"]
+          );
+        case "createdAt":
           return b.createdAt.getTime() - a.createdAt.getTime();
-        case 'title':
-          return (a.title || '').localeCompare(b.title || '');
-        case 'updatedAt':
+        case "title":
+          return (a.title || "").localeCompare(b.title || "");
+        case "updatedAt":
         default:
           return b.updatedAt.getTime() - a.updatedAt.getTime();
       }
@@ -100,7 +108,7 @@ const Index = () => {
   // 모든 카테고리 목록 생성
   const getAllCategories = () => {
     const categories = new Set<string>();
-    memos.forEach(memo => {
+    memos.forEach((memo) => {
       if (memo.category) {
         categories.add(memo.category);
       }
@@ -111,16 +119,16 @@ const Index = () => {
   const handleCreateMemo = () => {
     const newMemo: Memo = {
       id: Date.now().toString(),
-      title: '',
-      content: '',
+      title: "",
+      content: "",
       createdAt: new Date(),
       updatedAt: new Date(),
       isOrganized: false,
-      importance: 'medium',
-      color: '',
+      importance: "medium",
+      color: "",
       isLocked: false,
       tags: [],
-      viewCount: 0
+      viewCount: 0,
     };
     setMemos([newMemo, ...memos]);
     setSelectedMemo(newMemo);
@@ -129,14 +137,15 @@ const Index = () => {
   };
 
   const handleSaveMemo = (memo: Memo) => {
-    const updatedMemos = memos.map(m => m.id === memo.id ? memo : m);
+    const updatedMemos = memos.map((m) => (m.id === memo.id ? memo : m));
     setMemos(updatedMemos);
+    setSelectedMemo(memo);
     setIsEditing(false);
     setIsViewing(true);
   };
 
   const handleDeleteMemo = (id: string) => {
-    setMemos(memos.filter(m => m.id !== id));
+    setMemos(memos.filter((m) => m.id !== id));
     if (selectedMemo?.id === id) {
       setSelectedMemo(null);
       setIsEditing(false);
@@ -157,10 +166,10 @@ const Index = () => {
     const updatedMemo = {
       ...memo,
       viewCount: (memo.viewCount || 0) + 1,
-      lastViewedAt: new Date()
+      lastViewedAt: new Date(),
     };
-    
-    const updatedMemos = memos.map(m => m.id === memo.id ? updatedMemo : m);
+
+    const updatedMemos = memos.map((m) => (m.id === memo.id ? updatedMemo : m));
     setMemos(updatedMemos);
     setSelectedMemo(updatedMemo);
     setIsEditing(false);
@@ -170,24 +179,26 @@ const Index = () => {
 
   const handleUnlockMemo = () => {
     if (!selectedMemo) return;
-    
-    const inputPassword = prompt('메모 비밀번호를 입력하세요:');
+
+    const inputPassword = prompt("메모 비밀번호를 입력하세요:");
     if (inputPassword === selectedMemo.password) {
       setLockedMemoToView(null);
       // 조회수 업데이트
       const updatedMemo = {
         ...selectedMemo,
         viewCount: (selectedMemo.viewCount || 0) + 1,
-        lastViewedAt: new Date()
+        lastViewedAt: new Date(),
       };
-      const updatedMemos = memos.map(m => m.id === selectedMemo.id ? updatedMemo : m);
+      const updatedMemos = memos.map((m) =>
+        m.id === selectedMemo.id ? updatedMemo : m
+      );
       setMemos(updatedMemos);
       setSelectedMemo(updatedMemo);
     } else {
       toast({
         title: "접근 거부",
         description: "비밀번호가 올바르지 않습니다.",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
@@ -204,37 +215,45 @@ const Index = () => {
       toast({
         title: "내용 없음",
         description: "정리할 메모 내용이 없습니다.",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
 
     setIsOrganizing(true);
-    
+
     try {
-      const organizedContent = await organizeContentWithGemini(memo.content, DEVELOPER_API_KEY);
-      
+      const organizedContent = await organizeContentWithGemini(
+        memo.content,
+        DEVELOPER_API_KEY
+      );
+
       const organizedMemo: Memo = {
         ...memo,
         content: organizedContent,
         isOrganized: true,
-        updatedAt: new Date()
+        updatedAt: new Date(),
       };
-      
-      const updatedMemos = memos.map(m => m.id === memo.id ? organizedMemo : m);
+
+      const updatedMemos = memos.map((m) =>
+        m.id === memo.id ? organizedMemo : m
+      );
       setMemos(updatedMemos);
       setSelectedMemo(organizedMemo);
-      
+
       toast({
         title: "정리 완료",
-        description: "AI가 메모를 성공적으로 정리했습니다."
+        description: "AI가 메모를 성공적으로 정리했습니다.",
       });
     } catch (error) {
-      console.error('메모 정리 오류:', error);
+      console.error("메모 정리 오류:", error);
       toast({
         title: "정리 실패",
-        description: error instanceof Error ? error.message : "메모 정리 중 오류가 발생했습니다.",
-        variant: "destructive"
+        description:
+          error instanceof Error
+            ? error.message
+            : "메모 정리 중 오류가 발생했습니다.",
+        variant: "destructive",
       });
     } finally {
       setIsOrganizing(false);
@@ -261,7 +280,7 @@ const Index = () => {
   };
 
   const handleNotificationClick = (memoId: string) => {
-    const memo = memos.find(m => m.id === memoId);
+    const memo = memos.find((m) => m.id === memoId);
     if (memo) {
       handleSelectMemo(memo);
     }
@@ -278,7 +297,7 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       <Header onCreateMemo={handleCreateMemo} />
-      
+
       <div className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
           {/* Memo List */}
@@ -287,11 +306,16 @@ const Index = () => {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-800">내 메모</h2>
                 <div className="flex items-center space-x-2">
-                  <NotificationBell onNotificationClick={handleNotificationClick} />
-                  <ViewModeToggle viewMode={viewMode} onViewModeChange={setViewMode} />
+                  <NotificationBell
+                    onNotificationClick={handleNotificationClick}
+                  />
+                  <ViewModeToggle
+                    viewMode={viewMode}
+                    onViewModeChange={setViewMode}
+                  />
                 </div>
               </div>
-              
+
               <SmartSearch
                 memos={memos}
                 onSearchResults={handleSearchResults}
@@ -318,7 +342,7 @@ const Index = () => {
               )}
             </div>
 
-            {viewMode === 'list' ? (
+            {viewMode === "list" ? (
               <MemoList
                 memos={displayMemos}
                 selectedMemo={selectedMemo}
@@ -344,9 +368,11 @@ const Index = () => {
             {isEditing && selectedMemo ? (
               <MemoEditor
                 memo={selectedMemo}
-                availableCategories={categories}
+                availableCategories={getAllCategories()}
                 onSave={handleSaveMemo}
                 onCancel={() => setIsEditing(false)}
+                onOrganize={handleOrganizeMemo}
+                isOrganizing={isOrganizing}
               />
             ) : isViewing && selectedMemo ? (
               <MemoViewer
@@ -354,7 +380,11 @@ const Index = () => {
                 onEdit={() => handleEditMemo(selectedMemo)}
                 onOrganize={() => handleOrganizeMemo(selectedMemo)}
                 isOrganizing={isOrganizing}
-                onUnlock={lockedMemoToView === selectedMemo.id ? handleUnlockMemo : undefined}
+                onUnlock={
+                  lockedMemoToView === selectedMemo.id
+                    ? handleUnlockMemo
+                    : undefined
+                }
               />
             ) : (
               <div className="bg-white rounded-xl shadow-lg p-12 text-center">
