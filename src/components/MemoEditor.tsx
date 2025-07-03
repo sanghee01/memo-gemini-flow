@@ -9,6 +9,8 @@ import {
   Plus,
   Sparkles,
   Loader2,
+  Check,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +24,7 @@ import { MemoReminderSelector } from "./MemoReminderSelector";
 import { MemoCategorySelector } from "./MemoCategorySelector";
 import { toast } from "@/components/ui/use-toast";
 import { generateTagsWithGemini } from "@/services/aiTagService";
+import { organizeContentWithGemini } from "@/services/geminiService";
 import { useGemini } from "@/contexts/GeminiContext";
 
 interface MemoEditorProps {
@@ -29,8 +32,6 @@ interface MemoEditorProps {
   availableCategories: string[];
   onSave: (memo: Memo) => void;
   onCancel: () => void;
-  onOrganize?: (memo: Memo) => void;
-  isOrganizing?: boolean;
 }
 
 export const MemoEditor: React.FC<MemoEditorProps> = ({
@@ -38,12 +39,14 @@ export const MemoEditor: React.FC<MemoEditorProps> = ({
   availableCategories,
   onSave,
   onCancel,
-  onOrganize,
-  isOrganizing,
 }) => {
   const { apiKey } = useGemini();
   const [title, setTitle] = useState(memo.title);
   const [content, setContent] = useState(memo.content);
+  const [originalContent, setOriginalContent] = useState(""); // AI 정리 전 원본 내용
+  const [organizedContent, setOrganizedContent] = useState(""); // AI 정리된 내용
+  const [showOrganizedResult, setShowOrganizedResult] = useState(false); // AI 정리 결과 표시 여부
+  const [isOrganizing, setIsOrganizing] = useState(false); // AI 정리 중 상태
   const [importance, setImportance] = useState<"low" | "medium" | "high">(
     memo.importance || "medium"
   );
@@ -290,6 +293,90 @@ export const MemoEditor: React.FC<MemoEditorProps> = ({
     setTags(tags.filter((_, index) => index !== indexToRemove));
   };
 
+  const handleOrganize = async () => {
+    if (!content.trim()) {
+      toast({
+        title: "내용 없음",
+        description: "AI 정리를 수행할 메모 내용이 없습니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!apiKey) {
+      toast({
+        title: "API 키 없음",
+        description:
+          "Gemini API 키가 설정되지 않았습니다. .env 파일을 확인해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsOrganizing(true);
+    setOriginalContent(content); // 원본 내용 저장
+
+    try {
+      console.log("AI 정리 시작:", {
+        contentLength: content.length,
+        hasApiKey: !!apiKey,
+      });
+      const organizedResult = await organizeContentWithGemini(content, apiKey);
+      console.log("정리된 내용:", organizedResult);
+
+      if (organizedResult) {
+        setOrganizedContent(organizedResult);
+        setShowOrganizedResult(true);
+        toast({
+          title: "AI 정리 완료",
+          description: "정리된 내용을 확인하고 적용하거나 취소할 수 있습니다.",
+        });
+      } else {
+        toast({
+          title: "AI 정리 결과 없음",
+          description:
+            "AI가 메모를 정리하지 못했습니다. 메모 내용을 더 구체적으로 작성해보세요.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("AI 정리 오류:", error);
+      toast({
+        title: "AI 정리 실패",
+        description:
+          error instanceof Error
+            ? error.message
+            : "AI 정리 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsOrganizing(false);
+    }
+  };
+
+  // AI 정리 결과 적용
+  const applyOrganizedContent = () => {
+    setContent(organizedContent);
+    setShowOrganizedResult(false);
+    setOriginalContent("");
+    setOrganizedContent("");
+    toast({
+      title: "AI 정리 적용됨",
+      description: "정리된 내용이 메모에 적용되었습니다.",
+    });
+  };
+
+  // AI 정리 결과 취소
+  const cancelOrganizedContent = () => {
+    setShowOrganizedResult(false);
+    setOriginalContent("");
+    setOrganizedContent("");
+    toast({
+      title: "AI 정리 취소됨",
+      description: "원본 내용을 유지합니다.",
+    });
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-lg p-6">
       <div className="flex items-center justify-between mb-6">
@@ -324,35 +411,19 @@ export const MemoEditor: React.FC<MemoEditorProps> = ({
             )}
             {isLocked ? "잠금됨" : "잠금"}
           </Button>
-          {onOrganize && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                onOrganize({
-                  ...memo,
-                  title: title.trim() || "제목 없음",
-                  content,
-                  importance,
-                  color,
-                  isLocked,
-                  password: isLocked ? password : undefined,
-                  tags,
-                  reminderDate,
-                  category,
-                  updatedAt: new Date(),
-                })
-              }
-              disabled={isOrganizing || !content.trim()}
-            >
-              {isOrganizing ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Sparkles className="w-4 h-4 mr-2" />
-              )}
-              {isOrganizing ? "정리 중..." : "AI 정리"}
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleOrganize}
+            disabled={isOrganizing || !content.trim()}
+          >
+            {isOrganizing ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Sparkles className="w-4 h-4 mr-2" />
+            )}
+            {isOrganizing ? "정리 중..." : "AI 정리"}
+          </Button>
           <Button onClick={handleSave} size="sm">
             <Save className="w-4 h-4 mr-2" />
             저장
@@ -405,6 +476,44 @@ export const MemoEditor: React.FC<MemoEditorProps> = ({
             className="min-h-[400px] resize-none text-base leading-relaxed"
           />
         </div>
+
+        {/* AI 정리 결과 표시 */}
+        {showOrganizedResult && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-blue-800">
+                🤖 AI가 정리한 내용
+              </h3>
+              <div className="flex space-x-2">
+                <Button
+                  size="sm"
+                  onClick={applyOrganizedContent}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Check className="w-4 h-4 mr-1" />
+                  적용
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={cancelOrganizedContent}
+                >
+                  <RotateCcw className="w-4 h-4 mr-1" />
+                  취소
+                </Button>
+              </div>
+            </div>
+            <div className="bg-white border rounded p-3 max-h-60 overflow-y-auto">
+              <pre className="whitespace-pre-wrap text-sm text-gray-700">
+                {organizedContent}
+              </pre>
+            </div>
+            <p className="text-xs text-blue-600">
+              💡 정리된 내용을 확인하고 적용하거나 취소하세요. 원본 내용은
+              유지됩니다.
+            </p>
+          </div>
+        )}
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">

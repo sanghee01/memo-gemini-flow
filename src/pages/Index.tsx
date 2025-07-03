@@ -112,6 +112,7 @@ const Index = () => {
     setSelectedMemo(null);
   };
 
+  // AI 정리 함수 (기존 메모용)
   const handleAiOrganize = async (memoId: string) => {
     if (!apiKey) {
       alert("API 키가 설정되지 않았습니다. .env 파일을 확인해주세요.");
@@ -312,12 +313,6 @@ const Index = () => {
                 availableCategories={availableCategories}
                 onSave={handleSaveMemo}
                 onCancel={handleCloseEditor}
-                onOrganize={
-                  editingMemo
-                    ? () => handleAiOrganize(editingMemo.id)
-                    : undefined
-                }
-                isOrganizing={isLoading}
               />
             ) : selectedMemo ? (
               <MemoViewer
