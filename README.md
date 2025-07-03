@@ -2,7 +2,7 @@
 
 # 배포 링크
 
-[링크](https://memo-gemini-flow.lovable.app)
+[링크](https://memo-gemini-flow.vercel.app)
 
 ## 서비스 소개
 
