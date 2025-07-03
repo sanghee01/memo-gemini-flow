@@ -1,10 +1,9 @@
-
-import React, { useState } from 'react';
-import { Search, Sparkles } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Memo, SearchResult } from '@/types/memo';
-import { performEnhancedSearch } from '@/services/enhancedSearchService';
+import React, { useState } from "react";
+import { Search, Sparkles } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Memo, SearchResult } from "@/types/memo";
+import { performEnhancedSearch } from "@/services/enhancedSearchService";
 
 interface SmartSearchProps {
   memos: Memo[];
@@ -15,9 +14,9 @@ interface SmartSearchProps {
 export const SmartSearch: React.FC<SmartSearchProps> = ({
   memos,
   onSearchResults,
-  onClearSearch
+  onClearSearch,
 }) => {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
 
   const performSmartSearch = async (query: string) => {
@@ -27,12 +26,12 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
     }
 
     setIsSearching(true);
-    
+
     try {
       const results = await performEnhancedSearch(query, memos);
       onSearchResults(results);
     } catch (error) {
-      console.error('검색 오류:', error);
+      console.error("검색 오류:", error);
       onSearchResults([]);
     } finally {
       setIsSearching(false);
@@ -44,7 +43,7 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
   };
 
   const handleClear = () => {
-    setSearchQuery('');
+    setSearchQuery("");
     onClearSearch();
   };
 
@@ -56,17 +55,17 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
           placeholder="AI 스마트 검색 (예: 사용자 경험, 마케팅 아이디어...)"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+          onKeyPress={(e) => e.key === "Enter" && handleSearch()}
           className="pl-10"
         />
       </div>
-      <Button 
-        onClick={handleSearch} 
+      <Button
+        onClick={handleSearch}
         disabled={isSearching}
         className="flex items-center space-x-1"
       >
         <Sparkles className="w-4 h-4" />
-        <span>{isSearching ? '검색 중...' : '검색'}</span>
+        <span>{isSearching ? "검색 중..." : "검색"}</span>
       </Button>
       {searchQuery && (
         <Button variant="outline" onClick={handleClear}>

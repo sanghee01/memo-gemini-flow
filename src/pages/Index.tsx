@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Memo } from "@/types/memo";
+import { Memo, SearchResult } from "@/types/memo";
 import { Header } from "@/components/Header";
 import { MemoEditor } from "@/components/MemoEditor";
 import { MemoList } from "@/components/MemoList";
@@ -9,10 +9,6 @@ import { MemoGallery } from "@/components/MemoGallery";
 import { ViewModeToggle } from "@/components/ViewModeToggle";
 import { SmartSearch } from "@/components/SmartSearch";
 import { organizeContentWithGemini } from "@/services/geminiService";
-import {
-  enhancedSemanticSearch,
-  SearchResult,
-} from "@/services/enhancedSearchService";
 import { NotificationService } from "@/services/notificationService";
 import { toast } from "@/components/ui/use-toast";
 import { useGemini } from "@/contexts/GeminiContext";
@@ -156,24 +152,20 @@ const Index = () => {
     }
   };
 
-  const handleSearch = async (query: string) => {
-    setSearchQuery(query);
-    if (!query.trim()) {
-      setSearchResults([]);
-      setIsSearching(false);
-      return;
+  // 검색 결과 처리 함수
+  const handleSearchResults = (results: SearchResult[]) => {
+    setSearchResults(results);
+    setIsSearching(!!results.length);
+    if (results.length > 0) {
+      setSearchQuery("searching"); // 검색 중임을 표시
     }
+  };
 
-    setIsSearching(true);
-    try {
-      const results = await enhancedSemanticSearch(memos, query);
-      setSearchResults(results);
-    } catch (error) {
-      console.error("검색 실패:", error);
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
+  // 검색 초기화 함수
+  const handleClearSearch = () => {
+    setSearchQuery("");
+    setSearchResults([]);
+    setIsSearching(false);
   };
 
   // 메모들로부터 카테고리 목록 추출
@@ -260,12 +252,8 @@ const Index = () => {
         <div className="mb-6">
           <SmartSearch
             memos={memos}
-            onSearchResults={setSearchResults}
-            onClearSearch={() => {
-              setSearchQuery("");
-              setSearchResults([]);
-              setIsSearching(false);
-            }}
+            onSearchResults={handleSearchResults}
+            onClearSearch={handleClearSearch}
           />
         </div>
 

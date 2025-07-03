@@ -1,13 +1,6 @@
-import { Memo } from "@/types/memo";
+import { Memo, SearchResult } from "@/types/memo";
 
 const getApiKey = () => import.meta.env.VITE_GEMINI_API_KEY;
-
-export interface SearchResult {
-  memo: Memo;
-  relevanceScore: number;
-  matchedTerms: string[];
-  searchType: "exact" | "semantic" | "ai_enhanced";
-}
 
 export const performEnhancedSearch = async (
   query: string,

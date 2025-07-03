@@ -18,11 +18,17 @@ export interface Memo {
 }
 
 export type ViewMode = "list" | "gallery";
-export type SortBy = "updatedAt" | "createdAt" | "importance" | "title";
-export type FilterBy = "all" | "category" | "importance";
+export type SortBy =
+  | "newest"
+  | "oldest"
+  | "alphabetical"
+  | "color"
+  | "importance";
+export type FilterBy = "all" | "high" | "medium" | "low" | "locked" | string;
 
 export interface SearchResult {
   memo: Memo;
   relevanceScore: number;
-  matchedKeywords: string[];
+  matchedTerms: string[];
+  searchType: "exact" | "semantic" | "ai_enhanced";
 }
